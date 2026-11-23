@@ -43,7 +43,7 @@ export function Header({
   ).size;
 
   return (
-    <header className="@container sticky top-0 z-30 bg-[#FAF8F4]/95 backdrop-blur-md border-b border-stone-200/90">
+    <header className="@container shrink-0 sticky top-0 z-30 bg-[#FAF8F4]/95 backdrop-blur-md border-b border-stone-200/90">
       <div className="max-w-[1360px] mx-auto px-2.5 @md:px-4 @4xl:px-8 h-14 @2xl:h-16 flex items-center justify-between gap-2 @2xl:gap-4">
         {/* Zone 1: Back to Lobby + Brand */}
         <div className="flex items-center gap-1.5 @2xl:gap-2 shrink-0 min-w-0">

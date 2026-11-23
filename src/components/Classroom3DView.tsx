@@ -329,66 +329,78 @@ export function Classroom3DView({
 
       {/* Top-Right Utility Actions (Invite Code, Admin Quick Actions, Switch to 2D Grid) */}
       <div
-        className={`fixed z-20 flex items-center gap-1.5 ${
+        className={`fixed z-20 flex flex-col items-end gap-1 ${
           isCompactLandscape ? 'top-2 right-2' : 'top-3.5 right-3.5'
         }`}
       >
-        {activeGroup && (
+        <div className="flex items-center gap-1.5">
+          {activeGroup && (
+            <button
+              type="button"
+              onClick={onOpenInviteModal}
+              title="View or share 5-digit classroom invite code"
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-mono font-semibold rounded-xl border border-amber-900/20 text-amber-950 shadow-sm cursor-pointer transition-colors"
+              style={{ backgroundColor: 'rgba(254, 243, 199, 0.96)' }}
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-800" />
+              <span>{activeGroup.inviteCode}</span>
+            </button>
+          )}
+
+          {isAdminMode && (
+            <div
+              className="hidden lg:flex items-center gap-1 px-1.5 py-1 rounded-xl border border-stone-900/12 shadow-sm"
+              style={{ backgroundColor: 'rgba(250, 248, 244, 0.95)' }}
+            >
+              <button
+                type="button"
+                onClick={onEditChalkboard}
+                title="Edit Chalkboard"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                Board
+              </button>
+              <button
+                type="button"
+                onClick={onAddTeacher}
+                title="Add Subject Teacher"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Teacher
+              </button>
+              <button
+                type="button"
+                onClick={onAddDeskRow}
+                title="Add 1 bench row (4 seats)"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Row
+              </button>
+            </div>
+          )}
+
           <button
             type="button"
-            onClick={onOpenInviteModal}
-            title="View or share 5-digit classroom invite code"
-            className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-mono font-semibold rounded-xl border border-amber-900/20 text-amber-950 shadow-sm cursor-pointer transition-colors"
-            style={{ backgroundColor: 'rgba(254, 243, 199, 0.96)' }}
+            onClick={onSwitchTo2D}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[#1E3A2F] hover:bg-[#162C23] text-amber-50 shadow-sm cursor-pointer transition-colors"
           >
-            <KeyRound className="w-3.5 h-3.5 text-amber-800" />
-            <span>{activeGroup.inviteCode}</span>
+            <LayoutGrid className="w-3.5 h-3.5 text-amber-200" />
+            <span>2D Grid</span>
           </button>
-        )}
+        </div>
 
-        {isAdminMode && (
-          <div
-            className="hidden lg:flex items-center gap-1 px-1.5 py-1 rounded-xl border border-stone-900/12 shadow-sm"
-            style={{ backgroundColor: 'rgba(250, 248, 244, 0.95)' }}
-          >
-            <button
-              type="button"
-              onClick={onEditChalkboard}
-              title="Edit Chalkboard"
-              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              Board
-            </button>
-            <button
-              type="button"
-              onClick={onAddTeacher}
-              title="Add Subject Teacher"
-              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              Teacher
-            </button>
-            <button
-              type="button"
-              onClick={onAddDeskRow}
-              title="Add 1 bench row (4 seats)"
-              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Row
-            </button>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={onSwitchTo2D}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[#1E3A2F] hover:bg-[#162C23] text-amber-50 shadow-sm cursor-pointer transition-colors"
+        {/* Mobile & Tablet Developer Credit (tucked cleanly under top-right controls) */}
+        <div
+          className={`${
+            isCompactLandscape ? 'block' : 'lg:hidden'
+          } pointer-events-none px-2 py-0.5 rounded-md text-[10px] text-stone-700 border border-stone-900/12 shadow-xs`}
+          style={{ backgroundColor: 'rgba(250, 248, 244, 0.9)' }}
         >
-          <LayoutGrid className="w-3.5 h-3.5 text-amber-200" />
-          <span>2D Grid</span>
-        </button>
+          Developed by <span className="font-semibold text-[#1E3A2F]">dadagiri</span>
+        </div>
       </div>
 
       {/* Active Move-Seat Banner */}
@@ -573,13 +585,13 @@ export function Classroom3DView({
         )}
       </div>
 
-      {/* Subtle Developer Credit on Desktop 3D View */}
+      {/* Developer Credit on Desktop 3D View */}
       {!isCompactLandscape && (
         <div
-          className="hidden lg:block fixed bottom-3.5 right-3.5 z-10 pointer-events-none px-2.5 py-1 rounded-lg text-[11px] text-stone-600 border border-stone-900/10"
-          style={{ backgroundColor: 'rgba(250, 248, 244, 0.88)' }}
+          className="hidden lg:block fixed bottom-3.5 right-3.5 z-10 pointer-events-none px-2.5 py-1 rounded-lg text-[11px] text-stone-700 border border-stone-900/10 shadow-xs"
+          style={{ backgroundColor: 'rgba(250, 248, 244, 0.92)' }}
         >
-          by <span className="font-semibold text-[#1E3A2F]">dadagiri</span>
+          Developed by <span className="font-semibold text-[#1E3A2F]">dadagiri</span>
         </div>
       )}
     </div>

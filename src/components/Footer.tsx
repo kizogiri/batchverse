@@ -10,7 +10,7 @@ export function Footer({ activeGroup, wide = false }: FooterProps) {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-stone-200/90 bg-[#FAF8F4] text-stone-600">
+    <footer className="shrink-0 border-t border-stone-200/90 bg-[#FAF8F4] text-stone-600">
       <div
         className={`${
           wide ? 'max-w-[1360px] px-4 sm:px-6 lg:px-8' : 'max-w-5xl px-4 sm:px-6'

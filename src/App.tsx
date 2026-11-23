@@ -1,5 +1,5 @@
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditChalkboardModal, TeacherFormModal } from '@/src/components/AdminModals';
 import { ChalkboardStage } from '@/src/components/ChalkboardStage';
 import { ClaimSeatModal } from '@/src/components/ClaimSeatModal';
@@ -16,6 +16,7 @@ import { TeacherTributeModal } from '@/src/components/TeacherTributeModal';
 import { ToastStack } from '@/src/components/Toast';
 import { auth } from '@/src/firebase';
 import { useMobileLandscape } from '@/src/hooks/useMobileLandscape';
+import { useRotatedTouchScroll } from '@/src/hooks/useRotatedTouchScroll';
 import {
   addCloudGraffiti,
   addCloudTeacherNote,
@@ -71,9 +72,11 @@ type ViewMode = 'lobby' | 'cloud';
 export default function App() {
   const { isPortraitPhone, isCompactLandscape, viewportWidth, viewportHeight } =
     useMobileLandscape();
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   // Navigation & Auth State
   const [viewMode, setViewMode] = useState<ViewMode>('lobby');
+  useRotatedTouchScroll(stageRef, isPortraitPhone && viewMode === 'cloud');
   const [adminUser, setAdminUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [adminGroups, setAdminGroups] = useState<SchoolGroupDoc[]>([]);
@@ -836,14 +839,73 @@ export default function App() {
       }
     : undefined;
 
+  const classroom2DBody = (
+    <>
+      <main className="flex-1">
+        {cloudLoading && !activeGroup ? (
+          <div className="max-w-3xl mx-auto px-6 py-20 text-center">
+            <p className="text-sm font-medium text-stone-600">Loading classroom...</p>
+          </div>
+        ) : (
+          <>
+            <ClassroomToolbar
+              classroom={currentClassroom}
+              activeGroup={activeGroup}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              matchCount={searchMatchCount}
+              seatFilter={seatFilter}
+              onSeatFilterChange={setSeatFilter}
+              isAdminMode={isAdminMode}
+              onEditChalkboard={() => setShowChalkboardModal(true)}
+              onAddTeacher={() => setEditingTeacher(null)}
+              onAddDeskRow={handleAddDeskRow}
+              onRemoveDeskRow={handleRemoveDeskRow}
+              onExportJson={handleExportJson}
+              onOpenInviteModal={() => setShowInviteModal(true)}
+            />
+
+            <div className="max-w-[1360px] mx-auto px-2.5 sm:px-6 lg:px-8 pt-2">
+              <ChalkboardStage
+                chalkboard={currentClassroom.chalkboard}
+                teachers={currentClassroom.teachers}
+                isAdminMode={isAdminMode}
+                onEditChalkboard={() => setShowChalkboardModal(true)}
+                onSelectTeacher={(teacher) => setInspectingTeacherId(teacher.id)}
+                onAddTeacher={() => setEditingTeacher(null)}
+                onEditTeacher={(teacher) => setEditingTeacher(teacher)}
+                onDeleteTeacher={handleDeleteTeacher}
+              />
+
+              <ClassroomSeatingGrid
+                seats={currentClassroom.seats}
+                searchQuery={searchQuery}
+                seatFilter={seatFilter}
+                movingSeatId={movingSeatId}
+                isLocked={Boolean(activeGroup?.isLocked)}
+                isAdmin={isAdminMode}
+                canModifySeat={canModifySeat}
+                onCancelMoveMode={() => setMovingSeatId(null)}
+                onSelectOccupiedSeat={(seat) => setInspectingSeatId(seat.id)}
+                onClaimEmptySeat={(seat) => setClaimingSeatId(seat.id)}
+                onMoveSeat={handleMoveSeat}
+              />
+            </div>
+          </>
+        )}
+      </main>
+
+      <Footer activeGroup={activeGroup} wide />
+    </>
+  );
+
   return (
     <div
+      ref={stageRef}
       style={stageStyle}
       className={
         isPortraitPhone
-          ? `mobile-landscape-stage flex flex-col classroom-floor ${
-              classroomLayout === '3d' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'
-            }`
+          ? 'mobile-landscape-stage flex flex-col classroom-floor overflow-hidden'
           : 'min-h-screen flex flex-col classroom-floor'
       }
     >
@@ -898,61 +960,13 @@ export default function App() {
             onReturnToLobby={handleReturnToLobby}
           />
 
-          <main className="flex-1">
-            {cloudLoading && !activeGroup ? (
-              <div className="max-w-3xl mx-auto px-6 py-20 text-center">
-                <p className="text-sm font-medium text-stone-600">Loading classroom...</p>
-              </div>
-            ) : (
-              <>
-                <ClassroomToolbar
-                  classroom={currentClassroom}
-                  activeGroup={activeGroup}
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  matchCount={searchMatchCount}
-                  seatFilter={seatFilter}
-                  onSeatFilterChange={setSeatFilter}
-                  isAdminMode={isAdminMode}
-                  onEditChalkboard={() => setShowChalkboardModal(true)}
-                  onAddTeacher={() => setEditingTeacher(null)}
-                  onAddDeskRow={handleAddDeskRow}
-                  onRemoveDeskRow={handleRemoveDeskRow}
-                  onExportJson={handleExportJson}
-                  onOpenInviteModal={() => setShowInviteModal(true)}
-                />
-
-                <div className="max-w-[1360px] mx-auto px-2.5 sm:px-6 lg:px-8 pt-2">
-                  <ChalkboardStage
-                    chalkboard={currentClassroom.chalkboard}
-                    teachers={currentClassroom.teachers}
-                    isAdminMode={isAdminMode}
-                    onEditChalkboard={() => setShowChalkboardModal(true)}
-                    onSelectTeacher={(teacher) => setInspectingTeacherId(teacher.id)}
-                    onAddTeacher={() => setEditingTeacher(null)}
-                    onEditTeacher={(teacher) => setEditingTeacher(teacher)}
-                    onDeleteTeacher={handleDeleteTeacher}
-                  />
-
-                  <ClassroomSeatingGrid
-                    seats={currentClassroom.seats}
-                    searchQuery={searchQuery}
-                    seatFilter={seatFilter}
-                    movingSeatId={movingSeatId}
-                    isLocked={Boolean(activeGroup?.isLocked)}
-                    isAdmin={isAdminMode}
-                    canModifySeat={canModifySeat}
-                    onCancelMoveMode={() => setMovingSeatId(null)}
-                    onSelectOccupiedSeat={(seat) => setInspectingSeatId(seat.id)}
-                    onClaimEmptySeat={(seat) => setClaimingSeatId(seat.id)}
-                    onMoveSeat={handleMoveSeat}
-                  />
-                </div>
-              </>
-            )}
-          </main>
-
-          <Footer activeGroup={activeGroup} wide />
+          {isPortraitPhone ? (
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+              <div className="min-h-full flex flex-col">{classroom2DBody}</div>
+            </div>
+          ) : (
+            classroom2DBody
+          )}
         </>
       )}
 
