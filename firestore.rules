@@ -1,0 +1,403 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1: Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Global Helper Primitives
+    // =========================================================================
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidInviteCode(code) {
+      return code is string && code.size() == 5 && code.matches('^[0-9]{5}$');
+    }
+
+    function isValidSeatId(seatId) {
+      return seatId is string && seatId.size() >= 9 && seatId.size() <= 32 && seatId.matches('^(grade10|grade12)_[0-9]+$');
+    }
+
+    function isValidPinHash(hash) {
+      return hash is string && hash.size() == 64 && hash.matches('^[a-f0-9]{64}$');
+    }
+
+    function isVerifiedAdminAuth() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isGroupAdmin(groupId) {
+      return isVerifiedAdminAuth()
+        && exists(/databases/$(database)/documents/groups/$(groupId))
+        && get(/databases/$(database)/documents/groups/$(groupId)).data.adminUid == request.auth.uid;
+    }
+
+    function groupExists(groupId) {
+      return exists(/databases/$(database)/documents/groups/$(groupId));
+    }
+
+    function groupIsUnlocked(groupId) {
+      return groupExists(groupId)
+        && get(/databases/$(database)/documents/groups/$(groupId)).data.isLocked == false;
+    }
+
+    function hasValidPinProofInBatch(groupId, seatId) {
+      return existsAfter(/databases/$(database)/documents/groups/$(groupId)/seatSecrets/$(seatId))
+        && getAfter(/databases/$(database)/documents/groups/$(groupId)/seatSecrets/$(seatId)).data.updatedAt == request.time
+        && getAfter(/databases/$(database)/documents/groups/$(groupId)/seatSecrets/$(seatId)).data.proofPinHash
+           == get(/databases/$(database)/documents/groups/$(groupId)/seatSecrets/$(seatId)).data.pinHash;
+    }
+
+    // =========================================================================
+    // Validation Blueprints (Anti-Update-Gap)
+    // =========================================================================
+    function isValidChalkboard(board) {
+      return board is map
+        && board.keys().hasAll(['title', 'year', 'announcement'])
+        && board.keys().hasOnly(['title', 'year', 'announcement'])
+        && board.title is string && board.title.size() >= 1 && board.title.size() <= 120
+        && board.year is string && board.year.size() >= 1 && board.year.size() <= 80
+        && board.announcement is string && board.announcement.size() <= 300;
+    }
+
+    function isValidSchoolGroup(data) {
+      return data.keys().hasAll([
+          'schoolName', 'batchYear', 'inviteCode', 'adminUid', 'adminName',
+          'isLocked', 'grade10SeatCount', 'grade12SeatCount',
+          'grade10Chalkboard', 'grade12Chalkboard', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'schoolName', 'batchYear', 'inviteCode', 'adminUid', 'adminName',
+          'isLocked', 'grade10SeatCount', 'grade12SeatCount',
+          'grade10Chalkboard', 'grade12Chalkboard', 'createdAt', 'updatedAt'
+        ])
+        && data.schoolName is string && data.schoolName.size() >= 2 && data.schoolName.size() <= 100
+        && data.batchYear is string && data.batchYear.size() >= 2 && data.batchYear.size() <= 40
+        && isValidInviteCode(data.inviteCode)
+        && isValidId(data.adminUid)
+        && data.adminName is string && data.adminName.size() >= 1 && data.adminName.size() <= 80
+        && data.isLocked is bool
+        && data.grade10SeatCount is int && data.grade10SeatCount >= 8 && data.grade10SeatCount <= 80
+        && data.grade12SeatCount is int && data.grade12SeatCount >= 8 && data.grade12SeatCount <= 80
+        && isValidChalkboard(data.grade10Chalkboard)
+        && isValidChalkboard(data.grade12Chalkboard)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInviteCodeDoc(data, code) {
+      return data.keys().hasAll(['code', 'groupId', 'schoolName', 'batchYear', 'adminUid', 'createdAt'])
+        && data.keys().hasOnly(['code', 'groupId', 'schoolName', 'batchYear', 'adminUid', 'createdAt'])
+        && data.code == code
+        && isValidInviteCode(data.code)
+        && isValidId(data.groupId)
+        && data.schoolName is string && data.schoolName.size() >= 2 && data.schoolName.size() <= 100
+        && data.batchYear is string && data.batchYear.size() >= 2 && data.batchYear.size() <= 40
+        && isValidId(data.adminUid)
+        && data.createdAt is timestamp;
+    }
+
+    function isOptionalString(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isValidClaimedSeat(data, groupId, seatId) {
+      return data.keys().hasAll([
+          'groupId', 'grade', 'seatNumber', 'fullName', 'city', 'country',
+          'profession', 'claimedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'groupId', 'grade', 'seatNumber', 'fullName', 'nickname', 'photoUrl',
+          'city', 'country', 'countryFlag', 'profession', 'phone', 'email',
+          'facebookUrl', 'linkedinUrl', 'instagramUrl', 'memoryQuote',
+          'claimedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.groupId == groupId
+        && (data.grade == 'grade10' || data.grade == 'grade12')
+        && data.seatNumber is int && data.seatNumber >= 1 && data.seatNumber <= 80
+        && seatId == (data.grade + '_' + string(data.seatNumber))
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 80
+        && isOptionalString(data, 'nickname', 40)
+        && isOptionalString(data, 'photoUrl', 120000)
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 60
+        && data.country is string && data.country.size() >= 1 && data.country.size() <= 60
+        && isOptionalString(data, 'countryFlag', 16)
+        && data.profession is string && data.profession.size() >= 1 && data.profession.size() <= 80
+        && isOptionalString(data, 'phone', 32)
+        && isOptionalString(data, 'email', 100)
+        && isOptionalString(data, 'facebookUrl', 200)
+        && isOptionalString(data, 'linkedinUrl', 200)
+        && isOptionalString(data, 'instagramUrl', 200)
+        && isOptionalString(data, 'memoryQuote', 100)
+        && data.claimedAt is string && data.claimedAt.size() >= 4 && data.claimedAt.size() <= 32
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSeatSecret(data, groupId, seatId) {
+      return data.keys().hasAll(['groupId', 'seatId', 'pinHash', 'updatedAt'])
+        && data.keys().hasOnly(['groupId', 'seatId', 'pinHash', 'proofPinHash', 'updatedAt'])
+        && data.groupId == groupId
+        && data.seatId == seatId
+        && isValidPinHash(data.pinHash)
+        && (!('proofPinHash' in data) || isValidPinHash(data.proofPinHash))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDeskGraffiti(data, groupId, seatId) {
+      return data.keys().hasAll(['groupId', 'seatId', 'author', 'message', 'createdDate', 'createdAt'])
+        && data.keys().hasOnly(['groupId', 'seatId', 'author', 'message', 'createdDate', 'createdAt'])
+        && data.groupId == groupId
+        && data.seatId == seatId
+        && data.author is string && data.author.size() >= 1 && data.author.size() <= 50
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 140
+        && data.createdDate is string && data.createdDate.size() >= 4 && data.createdDate.size() <= 32
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSubjectTeacher(data, groupId) {
+      return data.keys().hasAll(['groupId', 'grade', 'name', 'subject', 'yearsTaught', 'tributeNote', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['groupId', 'grade', 'name', 'subject', 'yearsTaught', 'photoUrl', 'tributeNote', 'createdAt', 'updatedAt'])
+        && data.groupId == groupId
+        && (data.grade == 'grade10' || data.grade == 'grade12')
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 80
+        && data.yearsTaught is string && data.yearsTaught.size() >= 1 && data.yearsTaught.size() <= 40
+        && isOptionalString(data, 'photoUrl', 120000)
+        && data.tributeNote is string && data.tributeNote.size() >= 1 && data.tributeNote.size() <= 400
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTeacherNote(data, groupId, teacherId) {
+      return data.keys().hasAll(['groupId', 'teacherId', 'author', 'note', 'createdDate', 'createdAt'])
+        && data.keys().hasOnly(['groupId', 'teacherId', 'author', 'note', 'createdDate', 'createdAt'])
+        && data.groupId == groupId
+        && data.teacherId == teacherId
+        && data.author is string && data.author.size() >= 1 && data.author.size() <= 50
+        && data.note is string && data.note.size() >= 1 && data.note.size() <= 160
+        && data.createdDate is string && data.createdDate.size() >= 4 && data.createdDate.size() <= 32
+        && data.createdAt is timestamp;
+    }
+
+    // =========================================================================
+    // Collection Rules
+    // =========================================================================
+
+    // 1. 5-Digit Numeric Invite Code Lookup (get-only; never listable globally)
+    match /inviteCodes/{code} {
+      allow get: if isValidInviteCode(code);
+      allow list: if false;
+
+      allow create: if isVerifiedAdminAuth()
+        && isValidInviteCode(code)
+        && isValidInviteCodeDoc(incoming(), code)
+        && incoming().adminUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/groups/$(incoming().groupId))
+        && getAfter(/databases/$(database)/documents/groups/$(incoming().groupId)).data.adminUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/groups/$(incoming().groupId)).data.inviteCode == code;
+
+      allow update: if false;
+
+      allow delete: if isVerifiedAdminAuth()
+        && isValidInviteCode(code)
+        && existing().adminUid == request.auth.uid;
+    }
+
+    // 2. School Groups (Get by known unguessable ID; list strictly own admin groups)
+    match /groups/{groupId} {
+      allow get: if isValidId(groupId);
+      allow list: if isVerifiedAdminAuth() && existing().adminUid == request.auth.uid;
+
+      allow create: if isVerifiedAdminAuth()
+        && isValidId(groupId)
+        && isValidSchoolGroup(incoming())
+        && incoming().adminUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/inviteCodes/$(incoming().inviteCode))
+        && getAfter(/databases/$(database)/documents/inviteCodes/$(incoming().inviteCode)).data.groupId == groupId;
+
+      allow update: if isVerifiedAdminAuth()
+        && isValidId(groupId)
+        && isValidSchoolGroup(incoming())
+        && existing().adminUid == request.auth.uid
+        && incoming().adminUid == existing().adminUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'schoolName', 'batchYear', 'inviteCode', 'isLocked',
+          'grade10SeatCount', 'grade12SeatCount',
+          'grade10Chalkboard', 'grade12Chalkboard', 'updatedAt'
+        ]);
+
+      allow delete: if isVerifiedAdminAuth()
+        && isValidId(groupId)
+        && existing().adminUid == request.auth.uid;
+
+      // 3. Claimed Student Seats (Zero-login claim with atomic PIN secret; PIN or Admin required for edit/move/vacate)
+      match /seats/{seatId} {
+        allow get: if isValidId(groupId) && isValidSeatId(seatId);
+        allow list: if isValidId(groupId) && existing().groupId == groupId;
+
+        allow create: if isValidId(groupId)
+          && isValidSeatId(seatId)
+          && isValidClaimedSeat(incoming(), groupId, seatId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && (groupIsUnlocked(groupId) || isGroupAdmin(groupId))
+          && existsAfter(/databases/$(database)/documents/groups/$(groupId)/seatSecrets/$(seatId));
+
+        allow update: if isValidId(groupId)
+          && isValidSeatId(seatId)
+          && isValidClaimedSeat(incoming(), groupId, seatId)
+          && incoming().groupId == existing().groupId
+          && incoming().grade == existing().grade
+          && incoming().seatNumber == existing().seatNumber
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'fullName', 'nickname', 'photoUrl', 'city', 'country', 'countryFlag',
+            'profession', 'phone', 'email', 'facebookUrl', 'linkedinUrl',
+            'instagramUrl', 'memoryQuote', 'updatedAt'
+          ])
+          && (
+            isGroupAdmin(groupId)
+            || hasValidPinProofInBatch(groupId, seatId)
+          );
+
+        allow delete: if isValidId(groupId)
+          && isValidSeatId(seatId)
+          && (
+            isGroupAdmin(groupId)
+            || hasValidPinProofInBatch(groupId, seatId)
+          );
+
+        // 4. Desk Graffiti Notes (Any classmate in the group can post; Admin can delete)
+        match /graffiti/{noteId} {
+          allow get: if isValidId(groupId) && isValidSeatId(seatId) && isValidId(noteId);
+          allow list: if isValidId(groupId) && isValidSeatId(seatId)
+            && existing().groupId == groupId
+            && existing().seatId == seatId;
+
+          allow create: if isValidId(groupId)
+            && isValidSeatId(seatId)
+            && isValidId(noteId)
+            && isValidDeskGraffiti(incoming(), groupId, seatId)
+            && incoming().createdAt == request.time
+            && exists(/databases/$(database)/documents/groups/$(groupId)/seats/$(seatId));
+
+          allow update: if false;
+          allow delete: if isValidId(groupId) && isValidSeatId(seatId) && isValidId(noteId)
+            && isGroupAdmin(groupId);
+        }
+      }
+
+      // 5. Write-Only Private 4-Digit Edit PIN Secrets (NEVER readable by any client)
+      match /seatSecrets/{seatId} {
+        allow read: if false;
+
+        allow create: if isValidId(groupId)
+          && isValidSeatId(seatId)
+          && isValidSeatSecret(incoming(), groupId, seatId)
+          && incoming().updatedAt == request.time
+          && (groupIsUnlocked(groupId) || isGroupAdmin(groupId))
+          && !exists(/databases/$(database)/documents/groups/$(groupId)/seats/$(seatId))
+          && existsAfter(/databases/$(database)/documents/groups/$(groupId)/seats/$(seatId));
+
+        allow update: if isValidId(groupId)
+          && isValidSeatId(seatId)
+          && isValidSeatSecret(incoming(), groupId, seatId)
+          && incoming().groupId == existing().groupId
+          && incoming().seatId == existing().seatId
+          && incoming().updatedAt == request.time
+          && (
+            // Action A: Group Admin resets or updates seat secret
+            (isGroupAdmin(groupId)
+              && incoming().diff(existing()).affectedKeys().hasOnly(['pinHash', 'proofPinHash', 'updatedAt']))
+            ||
+            // Action B: Student proves knowledge of existing 4-digit PIN to edit/move/vacate occupied seat
+            (exists(/databases/$(database)/documents/groups/$(groupId)/seats/$(seatId))
+              && incoming().pinHash == existing().pinHash
+              && 'proofPinHash' in incoming()
+              && incoming().proofPinHash == existing().pinHash
+              && incoming().diff(existing()).affectedKeys().hasOnly(['proofPinHash', 'updatedAt']))
+            ||
+            // Action C: Student re-claims a previously vacated seat with a brand-new 4-digit PIN
+            (!exists(/databases/$(database)/documents/groups/$(groupId)/seats/$(seatId))
+              && existsAfter(/databases/$(database)/documents/groups/$(groupId)/seats/$(seatId))
+              && groupIsUnlocked(groupId)
+              && incoming().diff(existing()).affectedKeys().hasOnly(['pinHash', 'proofPinHash', 'updatedAt']))
+          );
+
+        allow delete: if isValidId(groupId)
+          && isValidSeatId(seatId)
+          && isGroupAdmin(groupId);
+      }
+
+      // 6. Subject Teachers (Admin manages; classmates read & post appreciation notes)
+      match /teachers/{teacherId} {
+        allow get: if isValidId(groupId) && isValidId(teacherId);
+        allow list: if isValidId(groupId) && existing().groupId == groupId;
+
+        allow create: if isVerifiedAdminAuth()
+          && isValidId(groupId)
+          && isValidId(teacherId)
+          && isValidSubjectTeacher(incoming(), groupId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && isGroupAdmin(groupId);
+
+        allow update: if isVerifiedAdminAuth()
+          && isValidId(groupId)
+          && isValidId(teacherId)
+          && isValidSubjectTeacher(incoming(), groupId)
+          && incoming().groupId == existing().groupId
+          && incoming().grade == existing().grade
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'subject', 'yearsTaught', 'photoUrl', 'tributeNote', 'updatedAt'
+          ])
+          && isGroupAdmin(groupId);
+
+        allow delete: if isVerifiedAdminAuth()
+          && isValidId(groupId)
+          && isValidId(teacherId)
+          && isGroupAdmin(groupId);
+
+        // 7. Teacher Appreciation Notes
+        match /notes/{noteId} {
+          allow get: if isValidId(groupId) && isValidId(teacherId) && isValidId(noteId);
+          allow list: if isValidId(groupId) && isValidId(teacherId)
+            && existing().groupId == groupId
+            && existing().teacherId == teacherId;
+
+          allow create: if isValidId(groupId)
+            && isValidId(teacherId)
+            && isValidId(noteId)
+            && isValidTeacherNote(incoming(), groupId, teacherId)
+            && incoming().createdAt == request.time
+            && exists(/databases/$(database)/documents/groups/$(groupId)/teachers/$(teacherId));
+
+          allow update: if false;
+          allow delete: if isValidId(groupId) && isValidId(teacherId) && isValidId(noteId)
+            && isGroupAdmin(groupId);
+        }
+      }
+    }
+  }
+}

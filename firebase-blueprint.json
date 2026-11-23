@@ -1,0 +1,177 @@
+{
+  "entities": {
+    "SchoolGroup": {
+      "title": "SchoolGroup",
+      "description": "A school alumni batch group containing Grade 10 and Grade 12 virtual classrooms managed by a Google-authenticated admin.",
+      "type": "object",
+      "properties": {
+        "schoolName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "batchYear": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "inviteCode": { "type": "string", "pattern": "^[0-9]{5}$", "minLength": 5, "maxLength": 5 },
+        "adminUid": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "adminName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "isLocked": { "type": "boolean" },
+        "grade10SeatCount": { "type": "number" },
+        "grade12SeatCount": { "type": "number" },
+        "grade10Chalkboard": { "type": "object" },
+        "grade12Chalkboard": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "schoolName",
+        "batchYear",
+        "inviteCode",
+        "adminUid",
+        "adminName",
+        "isLocked",
+        "grade10SeatCount",
+        "grade12SeatCount",
+        "grade10Chalkboard",
+        "grade12Chalkboard",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "InviteCode": {
+      "title": "InviteCode",
+      "description": "5-digit numeric invitation code lookup document mapping directly to a school group.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "pattern": "^[0-9]{5}$", "minLength": 5, "maxLength": 5 },
+        "groupId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "schoolName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "batchYear": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "adminUid": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "groupId", "schoolName", "batchYear", "adminUid", "createdAt"]
+    },
+    "ClaimedSeat": {
+      "title": "ClaimedSeat",
+      "description": "An occupied student desk inside Grade 10 or Grade 12 protected by a private 4-digit Edit PIN secret.",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "grade": { "type": "string", "enum": ["grade10", "grade12"] },
+        "seatNumber": { "type": "number" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "nickname": { "type": "string", "maxLength": 40 },
+        "photoUrl": { "type": "string", "maxLength": 120000 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "country": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "countryFlag": { "type": "string", "maxLength": 16 },
+        "profession": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "email": { "type": "string", "maxLength": 100 },
+        "facebookUrl": { "type": "string", "maxLength": 200 },
+        "linkedinUrl": { "type": "string", "maxLength": 200 },
+        "instagramUrl": { "type": "string", "maxLength": 200 },
+        "memoryQuote": { "type": "string", "maxLength": 100 },
+        "claimedAt": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "groupId",
+        "grade",
+        "seatNumber",
+        "fullName",
+        "city",
+        "country",
+        "profession",
+        "claimedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SeatSecret": {
+      "title": "SeatSecret",
+      "description": "Write-only hashed 4-digit Edit PIN record verifying seat ownership without requiring student login.",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "seatId": { "type": "string", "pattern": "^(grade10|grade12)_[0-9]+$", "maxLength": 32 },
+        "pinHash": { "type": "string", "pattern": "^[a-f0-9]{64}$", "minLength": 64, "maxLength": 64 },
+        "proofPinHash": { "type": "string", "pattern": "^[a-f0-9]{64}$", "minLength": 64, "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["groupId", "seatId", "pinHash", "updatedAt"]
+    },
+    "DeskGraffiti": {
+      "title": "DeskGraffiti",
+      "description": "A short nostalgic memory note left by a classmate on a seated friend's desk.",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "seatId": { "type": "string", "pattern": "^(grade10|grade12)_[0-9]+$", "maxLength": 32 },
+        "author": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "createdDate": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["groupId", "seatId", "author", "message", "createdDate", "createdAt"]
+    },
+    "SubjectTeacher": {
+      "title": "SubjectTeacher",
+      "description": "A subject teacher displayed at the front podium managed by the group admin.",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "grade": { "type": "string", "enum": ["grade10", "grade12"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "yearsTaught": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "photoUrl": { "type": "string", "maxLength": 120000 },
+        "tributeNote": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["groupId", "grade", "name", "subject", "yearsTaught", "tributeNote", "createdAt", "updatedAt"]
+    },
+    "TeacherNote": {
+      "title": "TeacherNote",
+      "description": "An appreciation note written by an alumnus for a subject teacher.",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "teacherId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
+        "author": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "note": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "createdDate": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["groupId", "teacherId", "author", "note", "createdDate", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/inviteCodes/{code}": {
+      "schema": { "$ref": "#/entities/InviteCode" },
+      "description": "Direct lookup from 5-digit numeric invite code to a school group ID (get-only, never listable)."
+    },
+    "/groups/{groupId}": {
+      "schema": { "$ref": "#/entities/SchoolGroup" },
+      "description": "School group metadata, chalkboards, bench counts, lock flag, and admin ownership."
+    },
+    "/groups/{groupId}/seats/{seatId}": {
+      "schema": { "$ref": "#/entities/ClaimedSeat" },
+      "description": "Claimed student seats for Grade 10 and Grade 12."
+    },
+    "/groups/{groupId}/seatSecrets/{seatId}": {
+      "schema": { "$ref": "#/entities/SeatSecret" },
+      "description": "Write-only SHA-256 4-digit Edit PIN hash verification records (never readable by clients)."
+    },
+    "/groups/{groupId}/seats/{seatId}/graffiti/{noteId}": {
+      "schema": { "$ref": "#/entities/DeskGraffiti" },
+      "description": "Classmate Desk Graffiti memory wall notes."
+    },
+    "/groups/{groupId}/teachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/SubjectTeacher" },
+      "description": "Subject teachers on the front podium managed by the group admin."
+    },
+    "/groups/{groupId}/teachers/{teacherId}/notes/{noteId}": {
+      "schema": { "$ref": "#/entities/TeacherNote" },
+      "description": "Student appreciation notes for each subject teacher."
+    }
+  }
+}

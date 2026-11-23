@@ -1,0 +1,6 @@
+{
+  "name": "BatchVerse — Grade 10 & Grade 12 Virtual Classroom",
+  "description": "Interactive 2.5D virtual school classroom where Grade 10 and Grade 12 alumni claim desks, tribute teachers at the chalkboard, and reconnect across the globe.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
