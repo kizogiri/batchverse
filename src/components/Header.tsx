@@ -140,12 +140,22 @@ export function Header({
                 <button
                   type="button"
                   onClick={onOpenInviteModal}
-                  className="hidden @3xl:inline-flex items-center gap-1.5 px-2.5 @4xl:px-3 py-1.5 text-xs font-semibold bg-[#1E3A2F] text-amber-50 hover:bg-[#162C23] rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-1 @4xl:gap-1.5 px-2 @4xl:px-3 py-1.5 text-xs font-semibold bg-[#1E3A2F] text-amber-50 hover:bg-[#162C23] rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                  Admin
+                  <span className="hidden @xl:inline">Admin</span>
                 </button>
-              ) : !adminUser || adminUser.uid === activeGroup.adminUid ? (
+              ) : adminUser && adminUser.uid === activeGroup.adminUid ? (
+                <button
+                  type="button"
+                  onClick={onAdminSignIn}
+                  title="Switch to Admin Mode to edit any seat"
+                  className="inline-flex items-center gap-1 @4xl:gap-1.5 px-2 @4xl:px-3 py-1.5 text-xs font-semibold bg-emerald-50 text-[#1E3A2F] border border-emerald-700/30 hover:bg-emerald-100 rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#1E3A2F]" />
+                  <span>Admin</span>
+                </button>
+              ) : !adminUser ? (
                 <button
                   type="button"
                   onClick={onAdminSignIn}
@@ -153,9 +163,7 @@ export function Header({
                   className="hidden @3xl:inline-flex items-center gap-1.5 px-2.5 @4xl:px-3 py-1.5 text-xs font-medium bg-white text-stone-700 border border-stone-300 hover:bg-stone-50 rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <LogIn className="w-3.5 h-3.5 text-stone-500" />
-                  {adminUser && adminUser.uid === activeGroup.adminUid
-                    ? 'Admin Mode'
-                    : 'Admin Login'}
+                  Admin Login
                 </button>
               ) : null}
             </>

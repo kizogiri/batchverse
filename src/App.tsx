@@ -177,9 +177,16 @@ export default function App() {
       .then((found) => {
         if (cancelled) return;
         if (found && found.groupId) {
-          clearAllSessionSeatPins();
-          setSavedPinMap({});
-          setCloudEntryMode('student');
+          const savedMode = window.sessionStorage.getItem(
+            `batchverse_entry_mode_${found.groupId}`
+          );
+          const nextEntryMode: 'student' | 'admin' =
+            savedMode === 'admin' ? 'admin' : 'student';
+          if (nextEntryMode === 'student') {
+            clearAllSessionSeatPins();
+            setSavedPinMap({});
+          }
+          setCloudEntryMode(nextEntryMode);
           saveRecentGroup({
             groupId: found.groupId,
             inviteCode: found.code,
@@ -370,13 +377,13 @@ export default function App() {
     };
   }, [activeGrade, activeGroup, cloudSeats, cloudTeachers]);
 
-  const isAdminMode = Boolean(
+  const isGroupOwner = Boolean(
     viewMode === 'cloud' &&
-      cloudEntryMode === 'admin' &&
       adminUser &&
       activeGroup &&
       adminUser.uid === activeGroup.adminUid
   );
+  const isAdminMode = Boolean(isGroupOwner && cloudEntryMode === 'admin');
   const gradeShortLabel = activeGrade === 'grade10' ? 'Grade 10' : 'Grade 12';
 
   const canModifySeat = useCallback(
@@ -455,9 +462,10 @@ export default function App() {
       if (!found || !found.groupId) {
         return `No school classroom found with invite code ${code}. Double-check the 5 digits.`;
       }
-      // Joining via 5-digit invite code always starts in strict Student Mode with all seats locked
+      // Joining via 5-digit invite code starts in Student Mode so students (or admins previewing) see locked seats
       clearAllSessionSeatPins();
       setSavedPinMap({});
+      window.sessionStorage.setItem(`batchverse_entry_mode_${found.groupId}`, 'student');
       setCloudEntryMode('student');
       saveRecentGroup({
         groupId: found.groupId,
@@ -481,14 +489,30 @@ export default function App() {
       clearAllSessionSeatPins();
       setSavedPinMap({});
     }
+    window.sessionStorage.setItem(`batchverse_entry_mode_${groupId}`, entryMode);
     setCloudEntryMode(entryMode);
     setActiveGroupId(groupId);
     setActiveGrade('grade10');
     setViewMode('cloud');
   };
 
+  const handleEnableAdminMode = () => {
+    if (activeGroup && adminUser && adminUser.uid === activeGroup.adminUid) {
+      window.sessionStorage.setItem(`batchverse_entry_mode_${activeGroup.id}`, 'admin');
+      setCloudEntryMode('admin');
+      pushToast('Admin Mode enabled — you can now edit, move, or vacate any seat');
+      return;
+    }
+    handleAdminSignIn().catch(() =>
+      pushToast('Google Sign-In popup was cancelled.', 'info')
+    );
+  };
+
   const handleAdminSignIn = async () => {
     const user = await signInAdminWithGoogle();
+    if (activeGroupId) {
+      window.sessionStorage.setItem(`batchverse_entry_mode_${activeGroupId}`, 'admin');
+    }
     setCloudEntryMode('admin');
     pushToast(`Signed in as ${user.displayName || user.email}`);
   };
@@ -497,6 +521,9 @@ export default function App() {
     await signOutAdmin();
     clearAllSessionSeatPins();
     setSavedPinMap({});
+    if (activeGroupId) {
+      window.sessionStorage.setItem(`batchverse_entry_mode_${activeGroupId}`, 'student');
+    }
     setCloudEntryMode('student');
     pushToast('Signed out', 'info');
   };
@@ -517,6 +544,7 @@ export default function App() {
       batchYear: created.batchYear,
     });
     setRecentGroups(getRecentGroups());
+    window.sessionStorage.setItem(`batchverse_entry_mode_${created.id}`, 'admin');
     setCloudEntryMode('admin');
     setActiveGroupId(created.id);
     setActiveGrade('grade10');
@@ -916,6 +944,8 @@ export default function App() {
           onSelectGrade={handleSelectGrade}
           activeGroup={activeGroup}
           isAdminMode={isAdminMode}
+          canEnableAdmin={isGroupOwner && !isAdminMode}
+          onEnableAdminMode={handleEnableAdminMode}
           isLocked={Boolean(activeGroup?.isLocked)}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -945,16 +975,7 @@ export default function App() {
             activeGroup={activeGroup}
             adminUser={adminUser}
             isAdminMode={isAdminMode}
-            onAdminSignIn={() => {
-              if (adminUser && activeGroup && adminUser.uid === activeGroup.adminUid) {
-                setCloudEntryMode('admin');
-                pushToast('Admin Mode enabled for your school group');
-                return;
-              }
-              handleAdminSignIn().catch(() =>
-                pushToast('Google Sign-In popup was cancelled.', 'info')
-              );
-            }}
+            onAdminSignIn={handleEnableAdminMode}
             onOpenInviteModal={() => setShowInviteModal(true)}
             onSwitchTo3D={() => setClassroomLayout('3d')}
             onReturnToLobby={handleReturnToLobby}
@@ -989,6 +1010,8 @@ export default function App() {
           zoneLabel={inspectingSeat.zoneLabel}
           canModifySeat={canModifySeat(inspectingSeat.seat.id)}
           isAdmin={isAdminMode}
+          canEnableAdmin={isGroupOwner && !isAdminMode}
+          onEnableAdminMode={handleEnableAdminMode}
           onClose={() => setInspectingSeatId(null)}
           onEditSeat={(seat) => {
             if (!canModifySeat(seat.id)) return;

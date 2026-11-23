@@ -10,6 +10,7 @@ import {
   Moon,
   Plus,
   Search,
+  ShieldCheck,
   Sun,
   Sunset,
   UserPlus,
@@ -30,6 +31,8 @@ interface Classroom3DViewProps {
   onSelectGrade: (grade: GradeId) => void;
   activeGroup: SchoolGroupDoc | null;
   isAdminMode: boolean;
+  canEnableAdmin: boolean;
+  onEnableAdminMode: () => void;
   isLocked: boolean;
   searchQuery: string;
   onSearchChange: (q: string) => void;
@@ -71,6 +74,8 @@ export function Classroom3DView({
   onSelectGrade,
   activeGroup,
   isAdminMode,
+  canEnableAdmin,
+  onEnableAdminMode,
   isLocked,
   searchQuery,
   onSearchChange,
@@ -344,6 +349,19 @@ export function Classroom3DView({
             >
               <KeyRound className="w-3.5 h-3.5 text-amber-800" />
               <span>{activeGroup.inviteCode}</span>
+            </button>
+          )}
+
+          {canEnableAdmin && (
+            <button
+              type="button"
+              onClick={onEnableAdminMode}
+              title="Enable Admin Mode to edit any student seat"
+              className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-xl border border-emerald-800/25 text-[#1E3A2F] shadow-sm cursor-pointer transition-colors"
+              style={{ backgroundColor: 'rgba(236, 253, 245, 0.96)' }}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-[#1E3A2F]" />
+              <span>Admin</span>
             </button>
           )}
 

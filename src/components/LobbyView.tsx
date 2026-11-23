@@ -224,11 +224,13 @@ export function LobbyView({
                     Recently Visited
                   </p>
                   <div className="space-y-2">
-                    {recentGroups.map((item) => (
+                    {recentGroups.map((item) => {
+                      const ownsGroup = adminGroups.some((g) => g.id === item.groupId);
+                      return (
                       <button
                         key={item.groupId}
                         type="button"
-                        onClick={() => onOpenGroup(item.groupId, 'student')}
+                        onClick={() => onOpenGroup(item.groupId, ownsGroup ? 'admin' : 'student')}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-stone-50 hover:bg-stone-100 border border-stone-200/80 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer"
                       >
                         <div className="min-w-0">
@@ -244,7 +246,8 @@ export function LobbyView({
                         </div>
                         <ArrowRight className="w-4 h-4 text-stone-400 shrink-0" />
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

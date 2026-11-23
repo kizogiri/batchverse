@@ -13,6 +13,7 @@ import {
   PenLine,
   Phone,
   Send,
+  ShieldCheck,
   Sun,
   Trash2,
   X,
@@ -30,6 +31,8 @@ interface StudentIdModalProps {
   zoneLabel: string;
   canModifySeat: boolean;
   isAdmin: boolean;
+  canEnableAdmin?: boolean;
+  onEnableAdminMode?: () => void;
   onClose: () => void;
   onEditSeat: (seat: StudentSeat) => void;
   onStartMoveSeat: (seatId: string) => void;
@@ -47,6 +50,8 @@ export function StudentIdModal({
   zoneLabel,
   canModifySeat,
   isAdmin,
+  canEnableAdmin = false,
+  onEnableAdminMode,
   onClose,
   onEditSeat,
   onStartMoveSeat,
@@ -368,14 +373,26 @@ export function StudentIdModal({
                     <Lock className="w-3.5 h-3.5 text-stone-500 shrink-0" />
                     Protected by {student.fullName.split(' ')[0]}&apos;s 4-digit PIN
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onRequestUnlockPin(seat)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#1E3A2F] hover:bg-[#162C23] text-amber-50 rounded-lg transition-colors cursor-pointer shrink-0"
-                  >
-                    <KeyRound className="w-3.5 h-3.5 text-amber-200" />
-                    Unlock with PIN
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {canEnableAdmin && onEnableAdminMode && (
+                      <button
+                        type="button"
+                        onClick={onEnableAdminMode}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-[#1E3A2F] border border-emerald-700/30 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        Switch to Admin
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onRequestUnlockPin(seat)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#1E3A2F] hover:bg-[#162C23] text-amber-50 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-amber-200" />
+                      Unlock with PIN
+                    </button>
+                  </div>
                 </div>
               )}
 

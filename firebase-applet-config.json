@@ -1,12 +1,12 @@
 {
-  "projectId": "gen-lang-client-0000005590",
-  "appId": "1:582266253996:web:c57d65d377b7e9ee222509",
-  "apiKey": "AIzaSyB__pyrnIIr5Er0Hw5-kysGyyzv4gqgVgs",
-  "authDomain": "gen-lang-client-0000005590.firebaseapp.com",
+  "projectId": "batchverse-de07a",
+  "appId": "1:453876852171:web:bd4e5470affb623ccbc24e",
+  "apiKey": "AIzaSyAcbdQBtCsavEzecA5dRE_op-lfItnyrlA",
+  "authDomain": "batchverse-de07a.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-batchversegrade1-abf70034-f6a3-4823-9252-9aa7b194154b",
-  "storageBucket": "gen-lang-client-0000005590.firebasestorage.app",
-  "messagingSenderId": "582266253996",
+  "storageBucket": "batchverse-de07a.firebasestorage.app",
+  "messagingSenderId": "453876852171",
   "measurementId": "",
-  "oAuthClientId": "582266253996-kmjohn7l0ddvvuvh38cs6jitnhidqqa3.apps.googleusercontent.com",
+  "oAuthClientId": "453876852171-34oan21t7vpuanmpnpabbqgqccr4g5m1.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
