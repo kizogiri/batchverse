@@ -123,7 +123,7 @@ export function VerifiedNoteComposer({
                 setSelectedSeatId(e.target.value);
                 setVerifyError(null);
               }}
-              className="flex-1 min-w-[140px] px-2.5 py-1.5 text-xs bg-white border border-stone-300 rounded-lg text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#1E3A2F]/30"
+              className="w-full @sm:w-auto @sm:flex-1 min-w-[140px] px-2.5 py-1.5 text-xs bg-white border border-stone-300 rounded-lg text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#1E3A2F]/30"
             >
               {claimedSeatOptions.map((opt) => (
                 <option key={opt.seatId} value={opt.seatId}>
@@ -146,7 +146,7 @@ export function VerifiedNoteComposer({
               }}
               placeholder="4-digit PIN"
               aria-label="Your 4-digit Edit PIN"
-              className="w-24 px-2.5 py-1.5 text-xs font-mono tracking-widest text-center bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E3A2F]/30"
+              className="flex-1 @sm:flex-none @sm:w-28 px-2.5 py-1.5 text-xs font-mono tracking-widest placeholder:font-sans placeholder:tracking-normal text-center bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E3A2F]/30"
             />
 
             <button

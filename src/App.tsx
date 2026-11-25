@@ -1,5 +1,4 @@
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { RotateCw } from 'lucide-react';
 import { FocusEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditChalkboardModal, TeacherFormModal } from '@/src/components/AdminModals';
 import { ChalkboardStage } from '@/src/components/ChalkboardStage';
@@ -98,7 +97,6 @@ export default function App() {
 
   // Navigation & Auth State
   const [viewMode, setViewMode] = useState<ViewMode>('lobby');
-  const [portraitModalUpright, setPortraitModalUpright] = useState(false);
   useRotatedTouchScroll(stageRef, isPortraitPhone && viewMode === 'cloud');
   const [adminUser, setAdminUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -514,28 +512,15 @@ export default function App() {
       editingTeacher !== undefined
   );
 
-  // Reset modal upright typing mode when all modals close or device physically rotates to landscape
-  useEffect(() => {
-    if (!hasOpenModal || !isPortraitPhone) {
-      setPortraitModalUpright(false);
-    }
-  }, [hasOpenModal, isPortraitPhone]);
-
-  // Enable rotated touch scrolling for landscape modals; disable when modal flips upright for typing
-  useRotatedTouchScroll(
-    modalLayerRef,
-    isPortraitPhone && viewMode === 'cloud' && hasOpenModal && !portraitModalUpright
-  );
-
-  // When typing on a portrait phone, the OS keyboard is always vertical — flip the active modal
-  // upright right above the keyboard so inputs & buttons match the keyboard orientation cleanly.
+  // When typing inside an upright portrait modal, smoothly scroll the focused input into view above the OS keyboard
   const handleModalFocusCapture = useCallback(
     (e: FocusEvent<HTMLDivElement>) => {
       if (!isPortraitPhone) return;
       const target = e.target;
       if (!(target instanceof HTMLElement)) return;
-      const isTextLikeInput =
+      const isInteractiveInput =
         target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
         (target instanceof HTMLInputElement &&
           ![
             'button',
@@ -548,16 +533,17 @@ export default function App() {
             'color',
             'hidden',
           ].includes(target.type));
-      if (!isTextLikeInput) return;
+      if (!isInteractiveInput) return;
 
-      setPortraitModalUpright(true);
-      window.setTimeout(() => {
+      const scrollTarget = () => {
         try {
           target.scrollIntoView({ block: 'center', behavior: 'smooth' });
         } catch {
           // Ignore scroll errors
         }
-      }, 140);
+      };
+      window.setTimeout(scrollTarget, 160);
+      window.setTimeout(scrollTarget, 360);
     },
     [isPortraitPhone]
   );
@@ -1206,31 +1192,24 @@ export default function App() {
     </>
   );
 
+  // On portrait phones, ALWAYS render modals upright inside the live visualViewport
+  // so native <select> pickers and the vertical mobile keyboard match the modal orientation cleanly.
   const modalLayerStyle =
     isPortraitPhone && hasOpenModal
-      ? portraitModalUpright
-        ? {
-            top: `${visualOffsetTop}px`,
-            left: `${visualOffsetLeft}px`,
-            width: `${visualWidth}px`,
-            height: `${visualHeight}px`,
-            transform: 'translate3d(0, 0, 0)',
-          }
-        : {
-            top: `${visualOffsetTop + viewportHeight / 2}px`,
-            left: `${visualOffsetLeft + viewportWidth / 2}px`,
-            width: `${viewportHeight}px`,
-            height: `${viewportWidth}px`,
-          }
+      ? {
+          top: `${visualOffsetTop}px`,
+          left: `${visualOffsetLeft}px`,
+          width: `${visualWidth}px`,
+          height: `${visualHeight}px`,
+          transform: 'translate3d(0, 0, 0)',
+        }
       : undefined;
 
   const modalLayerClass = !isPortraitPhone
     ? 'contents'
     : !hasOpenModal
       ? 'hidden'
-      : portraitModalUpright
-        ? 'fixed z-50 overflow-hidden'
-        : 'mobile-landscape-stage z-50 overflow-hidden';
+      : 'fixed z-50 overflow-hidden';
 
   return (
     <>
@@ -1304,7 +1283,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Dedicated Modal Layer: stays wide landscape for reading, flips upright above vertical keyboard when typing */}
+      {/* Dedicated Modal Layer: renders upright on portrait phones to match native pickers & vertical keyboard */}
       <div
         ref={modalLayerRef}
         style={modalLayerStyle}
@@ -1414,17 +1393,6 @@ export default function App() {
           />
         )}
 
-        {/* Quick return to wide landscape view once keyboard is dismissed */}
-        {isPortraitPhone && hasOpenModal && portraitModalUpright && !isKeyboardOpen && (
-          <button
-            type="button"
-            onClick={() => setPortraitModalUpright(false)}
-            className="fixed bottom-2.5 left-1/2 -translate-x-1/2 z-[55] inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-stone-900/90 text-amber-50 border border-white/15 rounded-full shadow-lg cursor-pointer"
-          >
-            <RotateCw className="w-3 h-3 text-amber-300" />
-            Landscape View
-          </button>
-        )}
       </div>
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
