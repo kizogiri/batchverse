@@ -339,7 +339,12 @@ export function updateChalkboardCanvasTexture(
   ctx.font = '700 28px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const eyebrow = [gradeLabel.toUpperCase(), chalkboard.year].filter(Boolean).join('  ·  ');
+  const yearText = (chalkboard.year || '').trim();
+  const hasGradeLabel =
+    Boolean(gradeLabel) && yearText.toLowerCase().includes(gradeLabel.toLowerCase());
+  const eyebrow = hasGradeLabel
+    ? yearText.toUpperCase()
+    : [gradeLabel.toUpperCase(), yearText].filter(Boolean).join('  ·  ');
   ctx.fillText(eyebrow, 640, 86);
 
   // Main chalkboard headline (crisp white chalk)

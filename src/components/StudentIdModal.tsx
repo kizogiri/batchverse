@@ -12,15 +12,20 @@ import {
   Moon,
   PenLine,
   Phone,
-  Send,
   ShieldCheck,
   Sun,
   Trash2,
   X,
 } from 'lucide-react';
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Avatar } from '@/src/components/Avatar';
-import { DeskGraffitiNote, StudentSeat } from '@/src/types/classroom';
+import { VerifiedNoteComposer } from '@/src/components/VerifiedNoteComposer';
+import {
+  ClaimedSeatOption,
+  DeskGraffitiNote,
+  StudentSeat,
+  VerifiedAuthorIdentity,
+} from '@/src/types/classroom';
 import { formatWhatsAppUrl, normalizeExternalUrl } from '@/src/utils/imageHelpers';
 import { getLocalTimeInfo, resolveCountryFlag } from '@/src/utils/locationTime';
 import { formatNickname } from '@/src/utils/nickname';
@@ -34,13 +39,17 @@ interface StudentIdModalProps {
   isAdmin: boolean;
   canEnableAdmin?: boolean;
   onEnableAdminMode?: () => void;
+  verifiedAuthor: VerifiedAuthorIdentity | null;
+  claimedSeatOptions: ClaimedSeatOption[];
+  onVerifyAuthorSeat: (seatId: string, pin4Digits: string) => Promise<string | null>;
   onClose: () => void;
   onEditSeat: (seat: StudentSeat) => void;
   onStartMoveSeat: (seatId: string) => void;
   onVacateSeat: (seatId: string) => void;
   onRequestUnlockPin: (seat: StudentSeat) => void;
   onAdminResetPin: (seat: StudentSeat) => void;
-  onAddGraffiti: (seatId: string, author: string, message: string) => Promise<void> | void;
+  onAddGraffiti: (seatId: string, message: string) => Promise<void> | void;
+  onDeleteGraffiti: (seatId: string, noteId: string) => Promise<void> | void;
   onCopySuccess: (label: string) => void;
 }
 
@@ -53,6 +62,9 @@ export function StudentIdModal({
   isAdmin,
   canEnableAdmin = false,
   onEnableAdminMode,
+  verifiedAuthor,
+  claimedSeatOptions,
+  onVerifyAuthorSeat,
   onClose,
   onEditSeat,
   onStartMoveSeat,
@@ -60,14 +72,13 @@ export function StudentIdModal({
   onRequestUnlockPin,
   onAdminResetPin,
   onAddGraffiti,
+  onDeleteGraffiti,
   onCopySuccess,
 }: StudentIdModalProps) {
   const student = seat.occupant;
   const [now, setNow] = useState(() => new Date());
   const [confirmVacate, setConfirmVacate] = useState(false);
-  const [graffitiAuthor, setGraffitiAuthor] = useState('');
-  const [graffitiMessage, setGraffitiMessage] = useState('');
-  const [postingNote, setPostingNote] = useState(false);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000);
@@ -88,15 +99,12 @@ export function StudentIdModal({
     }
   };
 
-  const handleGraffitiSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!graffitiAuthor.trim() || !graffitiMessage.trim()) return;
-    setPostingNote(true);
+  const handleRemoveNote = async (noteId: string) => {
+    setDeletingNoteId(noteId);
     try {
-      await onAddGraffiti(seat.id, graffitiAuthor.trim(), graffitiMessage.trim());
-      setGraffitiMessage('');
+      await onDeleteGraffiti(seat.id, noteId);
     } finally {
-      setPostingNote(false);
+      setDeletingNoteId(null);
     }
   };
 
@@ -322,12 +330,34 @@ export function StudentIdModal({
                     {graffitiNotes.map((note) => (
                       <div
                         key={note.id}
-                        className="bg-stone-50 border border-stone-200/75 rounded-lg px-3 py-2 text-xs"
+                        className="bg-stone-50 border border-stone-200/75 rounded-lg px-3 py-2 text-xs flex items-start justify-between gap-2"
                       >
-                        <p className="text-stone-800 leading-snug">“{note.message}”</p>
-                        <p className="text-[11px] text-stone-500 mt-0.5 font-medium">
-                          — {note.author} · <span className="font-mono">{note.createdAt}</span>
-                        </p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-stone-800 leading-snug break-words">“{note.message}”</p>
+                          <p className="text-[11px] text-stone-500 mt-0.5 font-medium flex items-center gap-1 flex-wrap">
+                            <span>— {note.author}</span>
+                            {note.authorSeatId && (
+                              <ShieldCheck
+                                className="w-3 h-3 text-emerald-700 shrink-0"
+                                aria-label="Verified classmate"
+                              />
+                            )}
+                            <span>·</span>
+                            <span className="font-mono">{note.createdAt}</span>
+                          </p>
+                        </div>
+                        {canModifySeat && (
+                          <button
+                            type="button"
+                            disabled={deletingNoteId === note.id}
+                            onClick={() => handleRemoveNote(note.id)}
+                            title="Delete note from your desk wall"
+                            aria-label={`Delete note from ${note.author}`}
+                            className="p-1 text-stone-400 hover:text-rose-700 hover:bg-rose-50 disabled:opacity-50 rounded transition-colors shrink-0 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -335,34 +365,18 @@ export function StudentIdModal({
                   <p className="text-xs text-stone-400 italic">No desk notes yet.</p>
                 )}
 
-                <form onSubmit={handleGraffitiSubmit} className="flex flex-wrap @sm:flex-nowrap gap-1.5">
-                  <input
-                    type="text"
-                    required
-                    maxLength={50}
-                    value={graffitiAuthor}
-                    onChange={(e) => setGraffitiAuthor(e.target.value)}
-                    placeholder="Your name"
-                    className="w-28 px-2.5 py-1.5 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E3A2F]/30"
-                  />
-                  <input
-                    type="text"
-                    required
-                    maxLength={140}
-                    value={graffitiMessage}
-                    onChange={(e) => setGraffitiMessage(e.target.value)}
-                    placeholder="Write a 1-line desk memory..."
-                    className="flex-1 min-w-[120px] px-2.5 py-1.5 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E3A2F]/30"
-                  />
-                  <button
-                    type="submit"
-                    disabled={postingNote}
-                    className="inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-semibold bg-stone-900 hover:bg-stone-800 disabled:opacity-60 text-white rounded-lg transition-colors shrink-0 cursor-pointer"
-                  >
-                    <Send className="w-3 h-3" />
-                    Post
-                  </button>
-                </form>
+                <VerifiedNoteComposer
+                  verifiedAuthor={verifiedAuthor}
+                  claimedSeatOptions={claimedSeatOptions}
+                  placeholder="Write a 1-line desk memory..."
+                  buttonLabel="Post"
+                  maxLength={140}
+                  buttonVariant="dark"
+                  canEnableAdmin={canEnableAdmin}
+                  onEnableAdminMode={onEnableAdminMode}
+                  onVerifySeat={onVerifyAuthorSeat}
+                  onSubmitNote={(msg) => onAddGraffiti(seat.id, msg)}
+                />
               </div>
             </div>
 

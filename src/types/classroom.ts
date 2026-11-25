@@ -2,6 +2,7 @@ export type GradeId = 'grade10' | 'grade12';
 
 export interface DeskGraffitiNote {
   id: string;
+  authorSeatId?: string;
   author: string;
   message: string;
   createdAt: string;
@@ -33,9 +34,24 @@ export interface StudentSeat {
 
 export interface TeacherAppreciationNote {
   id: string;
+  authorSeatId?: string;
   author: string;
   note: string;
   createdAt: string;
+}
+
+export interface VerifiedAuthorIdentity {
+  displayName: string;
+  seatId?: string;
+  seatLabel?: string;
+  pinHash?: string;
+  isAdmin?: boolean;
+}
+
+export interface ClaimedSeatOption {
+  seatId: string;
+  fullName: string;
+  seatLabel: string;
 }
 
 export interface TeacherProfile {

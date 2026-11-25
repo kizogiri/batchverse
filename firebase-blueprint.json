@@ -100,12 +100,13 @@
     },
     "DeskGraffiti": {
       "title": "DeskGraffiti",
-      "description": "A short nostalgic memory note left by a classmate on a seated friend's desk.",
+      "description": "A short nostalgic memory note left by a verified seated classmate or admin on a friend's desk.",
       "type": "object",
       "properties": {
         "groupId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
         "seatId": { "type": "string", "pattern": "^(grade10|grade12)_[0-9]+$", "maxLength": 32 },
-        "author": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "authorSeatId": { "type": "string", "pattern": "^(grade10|grade12)_[0-9]+$", "maxLength": 32 },
+        "author": { "type": "string", "minLength": 1, "maxLength": 80 },
         "message": { "type": "string", "minLength": 1, "maxLength": 140 },
         "createdDate": { "type": "string", "maxLength": 32 },
         "createdAt": { "type": "string", "format": "date-time" }
@@ -131,12 +132,13 @@
     },
     "TeacherNote": {
       "title": "TeacherNote",
-      "description": "An appreciation note written by an alumnus for a subject teacher.",
+      "description": "An appreciation note written by a verified seated alumnus or admin for a subject teacher.",
       "type": "object",
       "properties": {
         "groupId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
         "teacherId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$", "maxLength": 128 },
-        "author": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "authorSeatId": { "type": "string", "pattern": "^(grade10|grade12)_[0-9]+$", "maxLength": 32 },
+        "author": { "type": "string", "minLength": 1, "maxLength": 80 },
         "note": { "type": "string", "minLength": 1, "maxLength": 160 },
         "createdDate": { "type": "string", "maxLength": 32 },
         "createdAt": { "type": "string", "format": "date-time" }

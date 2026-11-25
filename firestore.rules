@@ -60,6 +60,23 @@ service cloud.firestore {
            == get(/databases/$(database)/documents/groups/$(groupId)/seatSecrets/$(seatId)).data.pinHash;
     }
 
+    // Cryptographic Anti-Impersonation Guard:
+    // Student can ONLY post using the exact fullName of a seat whose 4-digit PIN they proved in this batch.
+    function isVerifiedStudentAuthor(groupId, data) {
+      return 'authorSeatId' in data
+        && isValidSeatId(data.authorSeatId)
+        && exists(/databases/$(database)/documents/groups/$(groupId)/seats/$(data.authorSeatId))
+        && data.author == get(/databases/$(database)/documents/groups/$(groupId)/seats/$(data.authorSeatId)).data.fullName
+        && hasValidPinProofInBatch(groupId, data.authorSeatId);
+    }
+
+    // Verified Group Admin posting with their own verified adminName (no student impersonation).
+    function isVerifiedAdminAuthor(groupId, data) {
+      return isGroupAdmin(groupId)
+        && !('authorSeatId' in data)
+        && data.author == get(/databases/$(database)/documents/groups/$(groupId)).data.adminName;
+    }
+
     // =========================================================================
     // Validation Blueprints (Anti-Update-Gap)
     // =========================================================================
@@ -158,10 +175,11 @@ service cloud.firestore {
 
     function isValidDeskGraffiti(data, groupId, seatId) {
       return data.keys().hasAll(['groupId', 'seatId', 'author', 'message', 'createdDate', 'createdAt'])
-        && data.keys().hasOnly(['groupId', 'seatId', 'author', 'message', 'createdDate', 'createdAt'])
+        && data.keys().hasOnly(['groupId', 'seatId', 'authorSeatId', 'author', 'message', 'createdDate', 'createdAt'])
         && data.groupId == groupId
         && data.seatId == seatId
-        && data.author is string && data.author.size() >= 1 && data.author.size() <= 50
+        && (!('authorSeatId' in data) || isValidSeatId(data.authorSeatId))
+        && data.author is string && data.author.size() >= 1 && data.author.size() <= 80
         && data.message is string && data.message.size() >= 1 && data.message.size() <= 140
         && data.createdDate is string && data.createdDate.size() >= 4 && data.createdDate.size() <= 32
         && data.createdAt is timestamp;
@@ -183,10 +201,11 @@ service cloud.firestore {
 
     function isValidTeacherNote(data, groupId, teacherId) {
       return data.keys().hasAll(['groupId', 'teacherId', 'author', 'note', 'createdDate', 'createdAt'])
-        && data.keys().hasOnly(['groupId', 'teacherId', 'author', 'note', 'createdDate', 'createdAt'])
+        && data.keys().hasOnly(['groupId', 'teacherId', 'authorSeatId', 'author', 'note', 'createdDate', 'createdAt'])
         && data.groupId == groupId
         && data.teacherId == teacherId
-        && data.author is string && data.author.size() >= 1 && data.author.size() <= 50
+        && (!('authorSeatId' in data) || isValidSeatId(data.authorSeatId))
+        && data.author is string && data.author.size() >= 1 && data.author.size() <= 80
         && data.note is string && data.note.size() >= 1 && data.note.size() <= 160
         && data.createdDate is string && data.createdDate.size() >= 4 && data.createdDate.size() <= 32
         && data.createdAt is timestamp;
@@ -286,7 +305,7 @@ service cloud.firestore {
             || hasValidPinProofInBatch(groupId, seatId)
           );
 
-        // 4. Desk Graffiti Notes (Any classmate in the group can post; Admin can delete)
+        // 4. Desk Graffiti / Memory Wall (Verified seated student PIN or Admin required; desk owner or Admin can delete)
         match /graffiti/{noteId} {
           allow get: if isValidId(groupId) && isValidSeatId(seatId) && isValidId(noteId);
           allow list: if isValidId(groupId) && isValidSeatId(seatId)
@@ -298,11 +317,19 @@ service cloud.firestore {
             && isValidId(noteId)
             && isValidDeskGraffiti(incoming(), groupId, seatId)
             && incoming().createdAt == request.time
-            && exists(/databases/$(database)/documents/groups/$(groupId)/seats/$(seatId));
+            && exists(/databases/$(database)/documents/groups/$(groupId)/seats/$(seatId))
+            && (
+              isVerifiedStudentAuthor(groupId, incoming())
+              || isVerifiedAdminAuthor(groupId, incoming())
+            );
 
           allow update: if false;
+
           allow delete: if isValidId(groupId) && isValidSeatId(seatId) && isValidId(noteId)
-            && isGroupAdmin(groupId);
+            && (
+              isGroupAdmin(groupId)
+              || hasValidPinProofInBatch(groupId, seatId)
+            );
         }
       }
 
@@ -329,7 +356,7 @@ service cloud.firestore {
             (isGroupAdmin(groupId)
               && incoming().diff(existing()).affectedKeys().hasOnly(['pinHash', 'proofPinHash', 'updatedAt']))
             ||
-            // Action B: Student proves knowledge of existing 4-digit PIN to edit/move/vacate occupied seat
+            // Action B: Student proves knowledge of existing 4-digit PIN to edit/move/vacate/post/moderate
             (exists(/databases/$(database)/documents/groups/$(groupId)/seats/$(seatId))
               && incoming().pinHash == existing().pinHash
               && 'proofPinHash' in incoming()
@@ -348,7 +375,7 @@ service cloud.firestore {
           && isGroupAdmin(groupId);
       }
 
-      // 6. Subject Teachers (Admin manages; classmates read & post appreciation notes)
+      // 6. Subject Teachers (Admin manages; verified classmates or Admin post appreciation notes)
       match /teachers/{teacherId} {
         allow get: if isValidId(groupId) && isValidId(teacherId);
         allow list: if isValidId(groupId) && existing().groupId == groupId;
@@ -379,7 +406,7 @@ service cloud.firestore {
           && isValidId(teacherId)
           && isGroupAdmin(groupId);
 
-        // 7. Teacher Appreciation Notes
+        // 7. Teacher Appreciation Notes (Verified seated student PIN or Admin required; Admin can delete)
         match /notes/{noteId} {
           allow get: if isValidId(groupId) && isValidId(teacherId) && isValidId(noteId);
           allow list: if isValidId(groupId) && isValidId(teacherId)
@@ -391,7 +418,11 @@ service cloud.firestore {
             && isValidId(noteId)
             && isValidTeacherNote(incoming(), groupId, teacherId)
             && incoming().createdAt == request.time
-            && exists(/databases/$(database)/documents/groups/$(groupId)/teachers/$(teacherId));
+            && exists(/databases/$(database)/documents/groups/$(groupId)/teachers/$(teacherId))
+            && (
+              isVerifiedStudentAuthor(groupId, incoming())
+              || isVerifiedAdminAuthor(groupId, incoming())
+            );
 
           allow update: if false;
           allow delete: if isValidId(groupId) && isValidId(teacherId) && isValidId(noteId)

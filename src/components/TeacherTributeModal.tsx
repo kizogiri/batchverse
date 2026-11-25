@@ -1,13 +1,24 @@
-import { BookOpen, Calendar, Edit3, Heart, Send, Trash2, X } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { BookOpen, Calendar, Edit3, Heart, ShieldCheck, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
 import { Avatar } from '@/src/components/Avatar';
-import { TeacherProfile } from '@/src/types/classroom';
+import { VerifiedNoteComposer } from '@/src/components/VerifiedNoteComposer';
+import {
+  ClaimedSeatOption,
+  TeacherProfile,
+  VerifiedAuthorIdentity,
+} from '@/src/types/classroom';
 
 interface TeacherTributeModalProps {
   teacher: TeacherProfile;
   isAdminMode: boolean;
+  canEnableAdmin?: boolean;
+  onEnableAdminMode?: () => void;
+  verifiedAuthor: VerifiedAuthorIdentity | null;
+  claimedSeatOptions: ClaimedSeatOption[];
+  onVerifyAuthorSeat: (seatId: string, pin4Digits: string) => Promise<string | null>;
   onClose: () => void;
-  onAddAppreciation: (teacherId: string, author: string, note: string) => void;
+  onAddAppreciation: (teacherId: string, note: string) => Promise<void> | void;
+  onDeleteAppreciation: (teacherId: string, noteId: string) => Promise<void> | void;
   onEditTeacher: (teacher: TeacherProfile) => void;
   onDeleteTeacher: (teacherId: string) => void;
 }
@@ -15,19 +26,26 @@ interface TeacherTributeModalProps {
 export function TeacherTributeModal({
   teacher,
   isAdminMode,
+  canEnableAdmin = false,
+  onEnableAdminMode,
+  verifiedAuthor,
+  claimedSeatOptions,
+  onVerifyAuthorSeat,
   onClose,
   onAddAppreciation,
+  onDeleteAppreciation,
   onEditTeacher,
   onDeleteTeacher,
 }: TeacherTributeModalProps) {
-  const [author, setAuthor] = useState('');
-  const [note, setNote] = useState('');
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!author.trim() || !note.trim()) return;
-    onAddAppreciation(teacher.id, author.trim(), note.trim());
-    setNote('');
+  const handleRemoveNote = async (noteId: string) => {
+    setDeletingNoteId(noteId);
+    try {
+      await onDeleteAppreciation(teacher.id, noteId);
+    } finally {
+      setDeletingNoteId(null);
+    }
   };
 
   return (
@@ -124,12 +142,34 @@ export function TeacherTributeModal({
                   {teacher.appreciationNotes.map((item) => (
                     <div
                       key={item.id}
-                      className="bg-stone-50 border border-stone-200/80 rounded-lg px-3 py-2 text-xs"
+                      className="bg-stone-50 border border-stone-200/80 rounded-lg px-3 py-2 text-xs flex items-start justify-between gap-2"
                     >
-                      <p className="text-stone-800 leading-snug">“{item.note}”</p>
-                      <p className="text-[11px] text-stone-500 mt-1 font-medium">
-                        — {item.author} · <span className="font-mono">{item.createdAt}</span>
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-stone-800 leading-snug break-words">“{item.note}”</p>
+                        <p className="text-[11px] text-stone-500 mt-1 font-medium flex items-center gap-1 flex-wrap">
+                          <span>— {item.author}</span>
+                          {item.authorSeatId && (
+                            <ShieldCheck
+                              className="w-3 h-3 text-emerald-700 shrink-0"
+                              aria-label="Verified classmate"
+                            />
+                          )}
+                          <span>·</span>
+                          <span className="font-mono">{item.createdAt}</span>
+                        </p>
+                      </div>
+                      {isAdminMode && (
+                        <button
+                          type="button"
+                          disabled={deletingNoteId === item.id}
+                          onClick={() => handleRemoveNote(item.id)}
+                          title="Delete note"
+                          aria-label={`Delete note from ${item.author}`}
+                          className="p-1 text-stone-400 hover:text-rose-700 hover:bg-rose-50 disabled:opacity-50 rounded transition-colors shrink-0 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -139,34 +179,20 @@ export function TeacherTributeModal({
                 </p>
               )}
 
-              <form onSubmit={handleSubmit} className="pt-1">
-                <div className="flex flex-wrap @sm:flex-nowrap gap-1.5">
-                  <input
-                    type="text"
-                    required
-                    value={author}
-                    onChange={(e) => setAuthor(e.target.value)}
-                    placeholder="Your name"
-                    className="w-28 px-2.5 py-1.5 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E3A2F]/30"
-                  />
-                  <input
-                    type="text"
-                    required
-                    maxLength={140}
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="Add a short appreciation note..."
-                    className="flex-1 min-w-[120px] px-2.5 py-1.5 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E3A2F]/30"
-                  />
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-semibold bg-[#1E3A2F] hover:bg-[#162C23] text-amber-50 rounded-lg transition-colors shrink-0 cursor-pointer"
-                  >
-                    <Send className="w-3 h-3" />
-                    Send
-                  </button>
-                </div>
-              </form>
+              <div className="pt-1">
+                <VerifiedNoteComposer
+                  verifiedAuthor={verifiedAuthor}
+                  claimedSeatOptions={claimedSeatOptions}
+                  placeholder="Add a short appreciation note..."
+                  buttonLabel="Send"
+                  maxLength={160}
+                  buttonVariant="emerald"
+                  canEnableAdmin={canEnableAdmin}
+                  onEnableAdminMode={onEnableAdminMode}
+                  onVerifySeat={onVerifyAuthorSeat}
+                  onSubmitNote={(text) => onAddAppreciation(teacher.id, text)}
+                />
+              </div>
             </div>
 
             {isAdminMode && (

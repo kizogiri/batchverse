@@ -25,7 +25,9 @@ import {
   claimCloudSeat,
   CloudSeatRecord,
   createSchoolGroup,
+  deleteCloudGraffiti,
   deleteCloudTeacher,
+  deleteCloudTeacherNote,
   lookupGroupByInviteCode,
   makeSeatDocId,
   moveCloudSeat,
@@ -48,6 +50,7 @@ import {
 } from '@/src/services/classroomService';
 import {
   ChalkboardConfig,
+  ClaimedSeatOption,
   ClassroomData,
   DeskGraffitiNote,
   GradeId,
@@ -58,6 +61,7 @@ import {
   TeacherAppreciationNote,
   TeacherProfile,
   ToastItem,
+  VerifiedAuthorIdentity,
 } from '@/src/types/classroom';
 import { getSeatZoneLabel } from '@/src/utils/locationTime';
 import {
@@ -65,6 +69,7 @@ import {
   getRecentGroups,
   getSavedGroupSeatPins,
   isValidFiveDigitCode,
+  removeSeatPinHash,
   saveRecentGroup,
 } from '@/src/utils/pinCrypto';
 
@@ -106,6 +111,7 @@ export default function App() {
   const [cloudSeatGraffiti, setCloudSeatGraffiti] = useState<DeskGraffitiNote[]>([]);
   const [cloudTeacherNotes, setCloudTeacherNotes] = useState<TeacherAppreciationNote[]>([]);
   const [savedPinMap, setSavedPinMap] = useState<Record<string, string>>({});
+  const [preferredAuthorSeatId, setPreferredAuthorSeatId] = useState<string | null>(null);
   const [cloudEntryMode, setCloudEntryMode] = useState<'student' | 'admin'>('student');
 
   // Shared Classroom UI State
@@ -409,6 +415,49 @@ export default function App() {
     [isAdminMode, savedPinMap]
   );
 
+  const claimedSeatOptions: ClaimedSeatOption[] = useMemo(() => {
+    return [...cloudSeats]
+      .sort((a, b) => {
+        if (a.grade !== b.grade) return a.grade === 'grade10' ? -1 : 1;
+        return a.seatNumber - b.seatNumber;
+      })
+      .map((rec) => ({
+        seatId: rec.id,
+        fullName: rec.profile.fullName,
+        seatLabel: `${rec.grade === 'grade10' ? 'G10' : 'G12'} #${String(rec.seatNumber).padStart(2, '0')}`,
+      }));
+  }, [cloudSeats]);
+
+  const verifiedAuthor: VerifiedAuthorIdentity | null = useMemo(() => {
+    const unlockedSeats = cloudSeats.filter((rec) => Boolean(savedPinMap[rec.id]));
+    if (unlockedSeats.length > 0) {
+      const chosen =
+        (preferredAuthorSeatId
+          ? unlockedSeats.find((rec) => rec.id === preferredAuthorSeatId)
+          : undefined) ??
+        unlockedSeats.find((rec) => rec.grade === activeGrade) ??
+        unlockedSeats[0];
+
+      if (chosen) {
+        return {
+          displayName: chosen.profile.fullName,
+          seatId: chosen.id,
+          seatLabel: `${chosen.grade === 'grade10' ? 'G10' : 'G12'} Seat #${String(chosen.seatNumber).padStart(2, '0')}`,
+          pinHash: savedPinMap[chosen.id],
+        };
+      }
+    }
+
+    if (isAdminMode && activeGroup) {
+      return {
+        displayName: activeGroup.adminName,
+        isAdmin: true,
+      };
+    }
+
+    return null;
+  }, [cloudSeats, savedPinMap, preferredAuthorSeatId, activeGrade, isAdminMode, activeGroup]);
+
   const searchMatchCount = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return 0;
@@ -516,6 +565,7 @@ export default function App() {
   const handleReturnToLobby = () => {
     clearAllSessionSeatPins();
     setSavedPinMap({});
+    setPreferredAuthorSeatId(null);
     setCloudEntryMode('student');
     setViewMode('lobby');
     setActiveGroupId(null);
@@ -594,6 +644,7 @@ export default function App() {
     await signOutAdmin();
     clearAllSessionSeatPins();
     setSavedPinMap({});
+    setPreferredAuthorSeatId(null);
     if (activeGroupId) {
       window.sessionStorage.setItem(`batchverse_entry_mode_${activeGroupId}`, 'student');
     }
@@ -658,6 +709,7 @@ export default function App() {
         pin4Digits,
       });
       setSavedPinMap((prev) => ({ ...prev, [seatId]: pinHash }));
+      setPreferredAuthorSeatId(seatId);
       setClaimingSeatId(null);
       pushToast(
         `Seat #${String(seat.seatNumber).padStart(2, '0')} claimed & locked with your 4-digit PIN!`
@@ -697,6 +749,7 @@ export default function App() {
         delete next[seatId];
         return next;
       });
+      setPreferredAuthorSeatId((prev) => (prev === seatId ? null : prev));
       setInspectingSeatId(null);
       pushToast('Desk vacated and open for claiming', 'info');
     } catch {
@@ -752,6 +805,7 @@ export default function App() {
           next[newId] = existingPinHash;
           return next;
         });
+        setPreferredAuthorSeatId((prev) => (prev === fromSeatId ? newId : prev));
       }
       setMovingSeatId(null);
       if (generatedAdminPin) {
@@ -784,6 +838,7 @@ export default function App() {
           return 'Incorrect 4-digit Edit PIN. Try again or ask your Group Admin to reset it.';
         }
         setSavedPinMap((prev) => ({ ...prev, [seat.id]: result.pinHash! }));
+        setPreferredAuthorSeatId(seat.id);
         setPinPromptState(null);
         pushToast(`Unlocked Seat #${String(seat.seatNumber).padStart(2, '0')} on this device!`);
         return null;
@@ -805,10 +860,75 @@ export default function App() {
     }
   };
 
-  const handleAddGraffiti = async (seatId: string, author: string, message: string) => {
+  const handleVerifyAuthorSeat = async (
+    seatId: string,
+    pin4Digits: string
+  ): Promise<string | null> => {
+    if (!activeGroupId) return 'No classroom active.';
+    try {
+      const result = await verifySeatPin(activeGroupId, seatId, pin4Digits);
+      if (!result.valid || !result.pinHash) {
+        return 'Incorrect 4-digit Edit PIN. Try again or ask your Group Admin to reset it.';
+      }
+      setSavedPinMap((prev) => ({ ...prev, [seatId]: result.pinHash! }));
+      setPreferredAuthorSeatId(seatId);
+      const matched = cloudSeats.find((s) => s.id === seatId);
+      pushToast(
+        matched
+          ? `Verified as ${matched.profile.fullName}!`
+          : 'Seat verified — you can now post notes!'
+      );
+      return null;
+    } catch {
+      return 'Could not verify PIN right now. Please try again.';
+    }
+  };
+
+  const handleAddGraffiti = async (seatId: string, message: string) => {
     if (!activeGroupId) return;
-    await addCloudGraffiti(activeGroupId, seatId, author, message);
-    pushToast('Memory note added to desk wall!');
+    if (!verifiedAuthor) {
+      throw new Error('Verify your seat with your 4-digit PIN before posting.');
+    }
+    try {
+      await addCloudGraffiti({
+        groupId: activeGroupId,
+        seatId,
+        message,
+        authorName: verifiedAuthor.displayName,
+        authorSeatId: verifiedAuthor.seatId,
+        pinHash: verifiedAuthor.pinHash,
+        isAdmin: verifiedAuthor.isAdmin,
+      });
+      pushToast('Memory note added to desk wall!');
+    } catch (err) {
+      if (verifiedAuthor.seatId) {
+        removeSeatPinHash(activeGroupId, verifiedAuthor.seatId);
+        setSavedPinMap((prev) => {
+          const next = { ...prev };
+          delete next[verifiedAuthor.seatId!];
+          return next;
+        });
+        setPreferredAuthorSeatId((prev) => (prev === verifiedAuthor.seatId ? null : prev));
+        throw new Error('Your seat PIN could not be verified. Please re-enter your 4-digit PIN.');
+      }
+      throw err;
+    }
+  };
+
+  const handleDeleteGraffiti = async (seatId: string, noteId: string) => {
+    if (!activeGroupId || !canModifySeat(seatId)) return;
+    try {
+      await deleteCloudGraffiti({
+        groupId: activeGroupId,
+        seatId,
+        noteId,
+        pinHash: savedPinMap[seatId] ?? null,
+        isAdmin: isAdminMode,
+      });
+      pushToast('Note removed from desk wall', 'info');
+    } catch {
+      pushToast('Could not remove note. Please verify your seat PIN.', 'warning');
+    }
   };
 
   const handleSaveChalkboard = async (config: ChalkboardConfig) => {
@@ -839,14 +959,45 @@ export default function App() {
     pushToast('Teacher removed from podium', 'info');
   };
 
-  const handleAddTeacherAppreciation = async (
-    teacherId: string,
-    author: string,
-    note: string
-  ) => {
+  const handleAddTeacherAppreciation = async (teacherId: string, note: string) => {
     if (!activeGroupId) return;
-    await addCloudTeacherNote(activeGroupId, teacherId, author, note);
-    pushToast('Appreciation note posted!');
+    if (!verifiedAuthor) {
+      throw new Error('Verify your seat with your 4-digit PIN before posting.');
+    }
+    try {
+      await addCloudTeacherNote({
+        groupId: activeGroupId,
+        teacherId,
+        note,
+        authorName: verifiedAuthor.displayName,
+        authorSeatId: verifiedAuthor.seatId,
+        pinHash: verifiedAuthor.pinHash,
+        isAdmin: verifiedAuthor.isAdmin,
+      });
+      pushToast('Appreciation note posted!');
+    } catch (err) {
+      if (verifiedAuthor.seatId) {
+        removeSeatPinHash(activeGroupId, verifiedAuthor.seatId);
+        setSavedPinMap((prev) => {
+          const next = { ...prev };
+          delete next[verifiedAuthor.seatId!];
+          return next;
+        });
+        setPreferredAuthorSeatId((prev) => (prev === verifiedAuthor.seatId ? null : prev));
+        throw new Error('Your seat PIN could not be verified. Please re-enter your 4-digit PIN.');
+      }
+      throw err;
+    }
+  };
+
+  const handleDeleteTeacherAppreciation = async (teacherId: string, noteId: string) => {
+    if (!activeGroupId || !isAdminMode) return;
+    try {
+      await deleteCloudTeacherNote(activeGroupId, teacherId, noteId);
+      pushToast('Appreciation note removed', 'info');
+    } catch {
+      pushToast('Could not remove note right now.', 'warning');
+    }
   };
 
   const handleAddDeskRow = async () => {
@@ -1125,6 +1276,9 @@ export default function App() {
             isAdmin={isAdminMode}
             canEnableAdmin={isGroupOwner && !isAdminMode}
             onEnableAdminMode={handleEnableAdminMode}
+            verifiedAuthor={verifiedAuthor}
+            claimedSeatOptions={claimedSeatOptions}
+            onVerifyAuthorSeat={handleVerifyAuthorSeat}
             onClose={() => setInspectingSeatId(null)}
             onEditSeat={(seat) => {
               if (!canModifySeat(seat.id)) return;
@@ -1144,6 +1298,7 @@ export default function App() {
               setPinPromptState({ mode: 'admin-reset', seat });
             }}
             onAddGraffiti={handleAddGraffiti}
+            onDeleteGraffiti={handleDeleteGraffiti}
             onCopySuccess={(msg) => pushToast(msg)}
           />
         )}
@@ -1173,8 +1328,14 @@ export default function App() {
           <TeacherTributeModal
             teacher={inspectingTeacher}
             isAdminMode={isAdminMode}
+            canEnableAdmin={isGroupOwner && !isAdminMode}
+            onEnableAdminMode={handleEnableAdminMode}
+            verifiedAuthor={verifiedAuthor}
+            claimedSeatOptions={claimedSeatOptions}
+            onVerifyAuthorSeat={handleVerifyAuthorSeat}
             onClose={() => setInspectingTeacherId(null)}
             onAddAppreciation={handleAddTeacherAppreciation}
+            onDeleteAppreciation={handleDeleteTeacherAppreciation}
             onEditTeacher={(teacher) => setEditingTeacher(teacher)}
             onDeleteTeacher={handleDeleteTeacher}
           />

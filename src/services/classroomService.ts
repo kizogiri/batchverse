@@ -93,12 +93,12 @@ export async function createSchoolGroup(params: {
     const inviteCode = await reserveUniqueInviteCode();
     const grade10Chalkboard: ChalkboardConfig = {
       title: `${schoolName} — Grade 10`,
-      year: `${batchYear} • Grade 10 Classroom`,
+      year: batchYear,
       announcement: `Welcome back! Share invite code ${inviteCode} with classmates so everyone can claim their desk.`,
     };
     const grade12Chalkboard: ChalkboardConfig = {
       title: `${schoolName} — Grade 12`,
-      year: `${batchYear} • Grade 12 Classroom`,
+      year: batchYear,
       announcement: `Welcome back! Claim your Grade 12 seat and drop your updated city, profession, and contact links.`,
     };
 
@@ -372,6 +372,7 @@ export function subscribeToSeatGraffiti(
             sortKey: timestampMillis(data.createdAt),
             note: {
               id: d.id,
+              authorSeatId: data.authorSeatId ? String(data.authorSeatId) : undefined,
               author: String(data.author ?? ''),
               message: String(data.message ?? ''),
               createdAt: String(data.createdDate ?? ''),
@@ -414,6 +415,7 @@ export function subscribeToTeacherNotes(
             sortKey: timestampMillis(data.createdAt),
             note: {
               id: d.id,
+              authorSeatId: data.authorSeatId ? String(data.authorSeatId) : undefined,
               author: String(data.author ?? ''),
               note: String(data.note ?? ''),
               createdAt: String(data.createdDate ?? ''),
@@ -680,53 +682,148 @@ export async function adminResetSeatPin(
 }
 
 // ============================================================================
-// Desk Graffiti & Teacher Notes
+// Desk Graffiti & Teacher Notes (Verified Author Anti-Impersonation)
 // ============================================================================
-export async function addCloudGraffiti(
-  groupId: string,
-  seatId: string,
-  author: string,
-  message: string
-): Promise<void> {
+export async function addCloudGraffiti(params: {
+  groupId: string;
+  seatId: string;
+  message: string;
+  authorName: string;
+  authorSeatId?: string;
+  pinHash?: string;
+  isAdmin?: boolean;
+}): Promise<void> {
+  const { groupId, seatId, message, authorName, authorSeatId, pinHash, isAdmin } = params;
   const noteId = makeCleanId('grf');
   const path = `groups/${groupId}/seats/${seatId}/graffiti/${noteId}`;
   try {
     const batch = writeBatch(db);
-    batch.set(doc(db, 'groups', groupId, 'seats', seatId, 'graffiti', noteId), {
-      groupId,
-      seatId,
-      author: clampString(author, 50),
-      message: clampString(message, 140),
-      createdDate: new Date().toISOString().split('T')[0],
-      createdAt: serverTimestamp(),
-    });
+    const noteRef = doc(db, 'groups', groupId, 'seats', seatId, 'graffiti', noteId);
+
+    if (authorSeatId && pinHash) {
+      const secretRef = doc(db, 'groups', groupId, 'seatSecrets', authorSeatId);
+      batch.update(secretRef, {
+        proofPinHash: pinHash,
+        updatedAt: serverTimestamp(),
+      });
+      batch.set(noteRef, {
+        groupId,
+        seatId,
+        authorSeatId,
+        author: clampString(authorName, 80),
+        message: clampString(message, 140),
+        createdDate: new Date().toISOString().split('T')[0],
+        createdAt: serverTimestamp(),
+      });
+    } else if (isAdmin) {
+      batch.set(noteRef, {
+        groupId,
+        seatId,
+        author: clampString(authorName, 80),
+        message: clampString(message, 140),
+        createdDate: new Date().toISOString().split('T')[0],
+        createdAt: serverTimestamp(),
+      });
+    } else {
+      throw new Error('Verify your seat with your 4-digit PIN before posting.');
+    }
+
     await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
   }
 }
 
-export async function addCloudTeacherNote(
-  groupId: string,
-  teacherId: string,
-  author: string,
-  note: string
-): Promise<void> {
+export async function deleteCloudGraffiti(params: {
+  groupId: string;
+  seatId: string;
+  noteId: string;
+  pinHash?: string | null;
+  isAdmin: boolean;
+}): Promise<void> {
+  const { groupId, seatId, noteId, pinHash, isAdmin } = params;
+  const path = `groups/${groupId}/seats/${seatId}/graffiti/${noteId}`;
+  try {
+    const batch = writeBatch(db);
+    if (!isAdmin) {
+      if (!pinHash) {
+        throw new Error('4-digit Edit PIN required to remove notes from your desk.');
+      }
+      const secretRef = doc(db, 'groups', groupId, 'seatSecrets', seatId);
+      batch.update(secretRef, {
+        proofPinHash: pinHash,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    batch.delete(doc(db, 'groups', groupId, 'seats', seatId, 'graffiti', noteId));
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function addCloudTeacherNote(params: {
+  groupId: string;
+  teacherId: string;
+  note: string;
+  authorName: string;
+  authorSeatId?: string;
+  pinHash?: string;
+  isAdmin?: boolean;
+}): Promise<void> {
+  const { groupId, teacherId, note, authorName, authorSeatId, pinHash, isAdmin } = params;
   const noteId = makeCleanId('tn');
   const path = `groups/${groupId}/teachers/${teacherId}/notes/${noteId}`;
   try {
     const batch = writeBatch(db);
-    batch.set(doc(db, 'groups', groupId, 'teachers', teacherId, 'notes', noteId), {
-      groupId,
-      teacherId,
-      author: clampString(author, 50),
-      note: clampString(note, 160),
-      createdDate: new Date().toISOString().split('T')[0],
-      createdAt: serverTimestamp(),
-    });
+    const noteRef = doc(db, 'groups', groupId, 'teachers', teacherId, 'notes', noteId);
+
+    if (authorSeatId && pinHash) {
+      const secretRef = doc(db, 'groups', groupId, 'seatSecrets', authorSeatId);
+      batch.update(secretRef, {
+        proofPinHash: pinHash,
+        updatedAt: serverTimestamp(),
+      });
+      batch.set(noteRef, {
+        groupId,
+        teacherId,
+        authorSeatId,
+        author: clampString(authorName, 80),
+        note: clampString(note, 160),
+        createdDate: new Date().toISOString().split('T')[0],
+        createdAt: serverTimestamp(),
+      });
+    } else if (isAdmin) {
+      batch.set(noteRef, {
+        groupId,
+        teacherId,
+        author: clampString(authorName, 80),
+        note: clampString(note, 160),
+        createdDate: new Date().toISOString().split('T')[0],
+        createdAt: serverTimestamp(),
+      });
+    } else {
+      throw new Error('Verify your seat with your 4-digit PIN before posting.');
+    }
+
     await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function deleteCloudTeacherNote(
+  groupId: string,
+  teacherId: string,
+  noteId: string
+): Promise<void> {
+  const path = `groups/${groupId}/teachers/${teacherId}/notes/${noteId}`;
+  try {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'groups', groupId, 'teachers', teacherId, 'notes', noteId));
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
