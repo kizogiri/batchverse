@@ -1139,6 +1139,8 @@ export default function App() {
   // ============================================================================
   const stageStyle = isPortraitPhone
     ? {
+        top: `${(isKeyboardOpen ? 0 : visualOffsetTop) + viewportHeight / 2}px`,
+        left: `${(isKeyboardOpen ? 0 : visualOffsetLeft) + viewportWidth / 2}px`,
         width: `${viewportHeight}px`,
         height: `${viewportWidth}px`,
       }
@@ -1215,6 +1217,8 @@ export default function App() {
             transform: 'translate3d(0, 0, 0)',
           }
         : {
+            top: `${visualOffsetTop + viewportHeight / 2}px`,
+            left: `${visualOffsetLeft + viewportWidth / 2}px`,
             width: `${viewportHeight}px`,
             height: `${viewportWidth}px`,
           }

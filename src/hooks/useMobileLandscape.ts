@@ -84,6 +84,27 @@ function isTouchPhoneDevice(): boolean {
   return minScreenDim < 768 && (isCoarsePointer || 'ontouchstart' in window);
 }
 
+function isTextInputFocused(): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.activeElement;
+  if (!el) return false;
+  if (el instanceof HTMLTextAreaElement) return true;
+  if (el instanceof HTMLInputElement) {
+    return ![
+      'button',
+      'submit',
+      'reset',
+      'checkbox',
+      'radio',
+      'file',
+      'range',
+      'color',
+      'hidden',
+    ].includes(el.type);
+  }
+  return false;
+}
+
 function isDevicePortrait(): boolean {
   if (typeof window === 'undefined') return false;
   const orientType = window.screen?.orientation?.type;
@@ -133,23 +154,33 @@ function readViewportState(stablePortraitHeightRef: { current: number }): Omit<
   // even if fullscreen succeeded without hardware orientation lock.
   const isPortraitPhone = portrait && innerW < 768;
 
+  const inputFocused = isTextInputFocused();
+  // True visible height below any browser address bar / bottom toolbar
+  const visibleH = Math.min(innerH, visualH);
+  const visibleW = Math.min(innerW, visualW);
+
   if (isPortraitPhone) {
-    // Keep the tallest height observed in portrait so opening the soft keyboard
-    // never shrinks the rotated classroom stage or creates a blank gap at the top.
-    const candidateH = Math.max(innerH, visualH);
-    if (candidateH > stablePortraitHeightRef.current) {
-      stablePortraitHeightRef.current = candidateH;
+    const prevStable = stablePortraitHeightRef.current;
+    const keyboardLikelyOpen =
+      inputFocused && (innerH - visualH > 120 || (prevStable > 0 && prevStable - visibleH > 140));
+
+    if (!keyboardLikelyOpen) {
+      // Always track the exact visible viewport height when the address bar appears/disappears
+      // so neither edge of the rotated 3D/2D classroom is ever clipped off-screen.
+      stablePortraitHeightRef.current = visibleH;
+    } else if (prevStable === 0) {
+      stablePortraitHeightRef.current = Math.max(innerH, visualH);
     }
   } else {
     stablePortraitHeightRef.current = 0;
   }
 
   const stableHeight = isPortraitPhone
-    ? Math.max(stablePortraitHeightRef.current, innerH)
+    ? Math.max(stablePortraitHeightRef.current || visibleH, visibleH)
     : innerH;
 
   const keyboardDelta = stableHeight - visualH;
-  const isKeyboardOpen = keyboardDelta > 120;
+  const isKeyboardOpen = keyboardDelta > 120 && (inputFocused || innerH - visualH > 120);
   const isPhysicalMobileLandscape = !portrait && innerH < 540 && innerW < 1080;
   const isSmallScreen = Math.min(innerW, innerH) < 560;
 
@@ -157,7 +188,7 @@ function readViewportState(stablePortraitHeightRef: { current: number }): Omit<
     isPortraitPhone,
     isCompactLandscape:
       isPortraitPhone || isPhysicalMobileLandscape || (isFullscreen && isSmallScreen),
-    viewportWidth: innerW,
+    viewportWidth: isPortraitPhone ? visibleW : innerW,
     viewportHeight: stableHeight,
     visualWidth: visualW,
     visualHeight: visualH,
@@ -181,12 +212,19 @@ export function useMobileLandscape(): MobileLandscapeState {
       stablePortraitHeightRef.current = 0;
       update();
       window.setTimeout(update, 120);
+      window.setTimeout(update, 350);
+    };
+    const onFocusChange = () => {
+      update();
+      window.setTimeout(update, 160);
     };
 
     window.addEventListener('resize', update);
     window.addEventListener('orientationchange', onOrientationChange);
     document.addEventListener('fullscreenchange', onOrientationChange);
     document.addEventListener('webkitfullscreenchange', onOrientationChange);
+    document.addEventListener('focusin', onFocusChange);
+    document.addEventListener('focusout', onFocusChange);
     window.visualViewport?.addEventListener('resize', update);
     window.visualViewport?.addEventListener('scroll', update);
 
@@ -195,6 +233,8 @@ export function useMobileLandscape(): MobileLandscapeState {
       window.removeEventListener('orientationchange', onOrientationChange);
       document.removeEventListener('fullscreenchange', onOrientationChange);
       document.removeEventListener('webkitfullscreenchange', onOrientationChange);
+      document.removeEventListener('focusin', onFocusChange);
+      document.removeEventListener('focusout', onFocusChange);
       window.visualViewport?.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('scroll', update);
     };

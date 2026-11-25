@@ -250,207 +250,206 @@ export function Classroom3DView({
       {/* Isolated Full-Bleed WebGL Canvas Mount */}
       <div ref={mountRef} className="absolute inset-0 w-full h-full" />
 
-      {/* Top-Left Minimal Floating Title & Occupancy Bar (solid rgba, NO backdrop-filter) */}
+      {/* Top HUD Bar: Left School Card + Right Utility Actions in one flex row so they NEVER overlap */}
       <div
-        className={`fixed z-20 flex items-center gap-1.5 max-w-[calc(100%-160px)] ${
-          isCompactLandscape ? 'top-2 left-2' : 'top-3.5 left-3.5'
+        className={`fixed inset-x-0 top-0 z-20 pointer-events-none flex items-start justify-between gap-2 ${
+          isCompactLandscape ? 'px-2 pt-2' : 'px-3.5 pt-3.5'
         }`}
       >
-        <div
-          className={`flex items-center gap-1.5 rounded-xl border border-stone-900/12 shadow-sm ${
-            isCompactLandscape ? 'px-2 py-1' : 'px-2.5 py-1.5 gap-2'
-          }`}
-          style={{ backgroundColor: 'rgba(250, 248, 244, 0.95)' }}
-        >
-          <button
-            type="button"
-            onClick={onReturnToLobby}
-            title="Back to school lobby"
-            aria-label="Back to school lobby"
-            className={`${
-              isCompactLandscape ? 'w-7 h-7' : 'w-8 h-8'
-            } rounded-lg bg-white border border-stone-200 hover:bg-stone-100 text-stone-700 flex items-center justify-center shrink-0 cursor-pointer transition-colors`}
+        {/* Top-Left Minimal Floating Title & Occupancy Bar */}
+        <div className="pointer-events-auto min-w-0 flex-1 max-w-fit flex items-center gap-1.5">
+          <div
+            className={`min-w-0 max-w-full flex items-center gap-1.5 rounded-xl border border-stone-900/12 shadow-sm ${
+              isCompactLandscape ? 'px-2 py-1' : 'px-2.5 py-1.5 gap-2'
+            }`}
+            style={{ backgroundColor: 'rgba(250, 248, 244, 0.95)' }}
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-          </button>
-
-          {!isCompactLandscape && (
-            <div className="w-7 h-7 rounded-lg bg-[#1E3A2F] text-amber-50 hidden sm:flex items-center justify-center shrink-0">
-              <GraduationCap className="w-4 h-4" />
-            </div>
-          )}
-
-          <div className="min-w-0 pr-1">
-            <p
+            <button
+              type="button"
+              onClick={onReturnToLobby}
+              title="Back to school lobby"
+              aria-label="Back to school lobby"
               className={`${
-                isCompactLandscape ? 'text-xs' : 'text-sm'
-              } font-semibold text-stone-900 leading-tight truncate`}
-              style={{ fontFamily: 'var(--font-display)' }}
+                isCompactLandscape ? 'w-7 h-7' : 'w-8 h-8'
+              } rounded-lg bg-white border border-stone-200 hover:bg-stone-100 text-stone-700 flex items-center justify-center shrink-0 cursor-pointer transition-colors`}
             >
-              {activeGroup ? activeGroup.schoolName : 'BatchVerse'}
-            </p>
-            <p className="text-[10px] sm:text-[11px] font-mono text-stone-600 leading-tight tabular-nums">
-              {activeGrade === 'grade10' ? 'Grade 10' : 'Grade 12'} · {claimedCount}/
-              {classroom.seats.length} Seated
-            </p>
-          </div>
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </button>
 
-          {/* Inline Search Trigger / Input */}
-          <div className="border-l border-stone-200 pl-2 flex items-center">
-            {searchOpen || searchQuery ? (
-              <div className="flex items-center gap-1 bg-white border border-stone-300 rounded-lg px-2 py-1">
-                <Search className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => onSearchChange(e.target.value)}
-                  placeholder="Find classmate..."
-                  autoFocus
-                  className="w-28 sm:w-36 text-xs text-stone-900 bg-transparent focus:outline-none"
-                />
-                {searchQuery && (
-                  <span className="text-[10px] font-mono font-semibold text-amber-800 px-1">
-                    {matchCount}
-                  </span>
-                )}
+            {!isCompactLandscape && (
+              <div className="w-7 h-7 rounded-lg bg-[#1E3A2F] text-amber-50 hidden sm:flex items-center justify-center shrink-0">
+                <GraduationCap className="w-4 h-4" />
+              </div>
+            )}
+
+            <div className="min-w-0 pr-1">
+              <p
+                className={`${
+                  isCompactLandscape ? 'text-xs' : 'text-sm'
+                } font-semibold text-stone-900 leading-tight truncate`}
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
+                {activeGroup ? activeGroup.schoolName : 'BatchVerse'}
+              </p>
+              <p className="text-[10px] sm:text-[11px] font-mono text-stone-600 leading-tight tabular-nums truncate">
+                {activeGrade === 'grade10' ? 'Grade 10' : 'Grade 12'} · {claimedCount}/
+                {classroom.seats.length} Seated
+              </p>
+            </div>
+
+            {/* Inline Search Trigger / Input */}
+            <div className="border-l border-stone-200 pl-2 flex items-center shrink-0">
+              {searchOpen || searchQuery ? (
+                <div className="flex items-center gap-1 bg-white border border-stone-300 rounded-lg px-2 py-1">
+                  <Search className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                    placeholder="Find classmate..."
+                    autoFocus
+                    className="w-24 sm:w-36 text-xs text-stone-900 bg-transparent focus:outline-none"
+                  />
+                  {searchQuery && (
+                    <span className="text-[10px] font-mono font-semibold text-amber-800 px-1">
+                      {matchCount}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSearchChange('');
+                      setSearchOpen(false);
+                    }}
+                    aria-label="Clear search"
+                    className="text-stone-400 hover:text-stone-700 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    onSearchChange('');
-                    setSearchOpen(false);
-                  }}
-                  aria-label="Clear search"
-                  className="text-stone-400 hover:text-stone-700 cursor-pointer"
+                  onClick={() => setSearchOpen(true)}
+                  title="Search classmates by name, city, or profession"
+                  aria-label="Search classmates"
+                  className="w-8 h-8 rounded-lg hover:bg-stone-200/70 text-stone-700 flex items-center justify-center cursor-pointer transition-colors"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <Search className="w-4 h-4" />
                 </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setSearchOpen(true)}
-                title="Search classmates by name, city, or profession"
-                aria-label="Search classmates"
-                className="w-8 h-8 rounded-lg hover:bg-stone-200/70 text-stone-700 flex items-center justify-center cursor-pointer transition-colors"
-              >
-                <Search className="w-4 h-4" />
-              </button>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Top-Right Utility Actions (Invite Code, Admin Quick Actions, Switch to 2D Grid) */}
-      <div
-        className={`fixed z-20 flex flex-col items-end gap-1 ${
-          isCompactLandscape ? 'top-2 right-2' : 'top-3.5 right-3.5'
-        }`}
-      >
-        <div className="flex items-center gap-1.5">
-          {activeGroup && (
-            <button
-              type="button"
-              onClick={onOpenInviteModal}
-              title="View or share 5-digit classroom invite code"
-              className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-mono font-semibold rounded-xl border border-amber-900/20 text-amber-950 shadow-sm cursor-pointer transition-colors"
-              style={{ backgroundColor: 'rgba(254, 243, 199, 0.96)' }}
-            >
-              <KeyRound className="w-3.5 h-3.5 text-amber-800" />
-              <span>{activeGroup.inviteCode}</span>
-            </button>
-          )}
-
-          {canEnableAdmin && (
-            <button
-              type="button"
-              onClick={onEnableAdminMode}
-              title="Enable Admin Mode to edit any student seat"
-              className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-xl border border-emerald-800/25 text-[#1E3A2F] shadow-sm cursor-pointer transition-colors"
-              style={{ backgroundColor: 'rgba(236, 253, 245, 0.96)' }}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#1E3A2F]" />
-              <span>Admin</span>
-            </button>
-          )}
-
-          {isAdminMode && (
-            <div
-              className="hidden lg:flex items-center gap-1 px-1.5 py-1 rounded-xl border border-stone-900/12 shadow-sm"
-              style={{ backgroundColor: 'rgba(250, 248, 244, 0.95)' }}
-            >
+        {/* Top-Right Utility Actions (Invite Code, Admin Quick Actions, Fullscreen, Switch to 2D Grid) */}
+        <div className="pointer-events-auto shrink-0 flex flex-col items-end gap-1">
+          <div className="flex items-center gap-1.5">
+            {activeGroup && (
               <button
                 type="button"
-                onClick={onEditChalkboard}
-                title="Edit Chalkboard"
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
+                onClick={onOpenInviteModal}
+                title="View or share 5-digit classroom invite code"
+                className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-mono font-semibold rounded-xl border border-amber-900/20 text-amber-950 shadow-sm cursor-pointer transition-colors whitespace-nowrap"
+                style={{ backgroundColor: 'rgba(254, 243, 199, 0.96)' }}
               >
-                <Edit3 className="w-3.5 h-3.5" />
-                Board
+                <KeyRound className="w-3.5 h-3.5 text-amber-800" />
+                <span>{activeGroup.inviteCode}</span>
               </button>
-              <button
-                type="button"
-                onClick={onAddTeacher}
-                title="Add Subject Teacher"
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                Teacher
-              </button>
-              <button
-                type="button"
-                onClick={onAddDeskRow}
-                title="Add 1 bench row (4 seats)"
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Row
-              </button>
-            </div>
-          )}
+            )}
 
-          {canLockLandscape && (
+            {canEnableAdmin && (
+              <button
+                type="button"
+                onClick={onEnableAdminMode}
+                title="Enable Admin Mode to edit any student seat"
+                className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-xl border border-emerald-800/25 text-[#1E3A2F] shadow-sm cursor-pointer transition-colors whitespace-nowrap"
+                style={{ backgroundColor: 'rgba(236, 253, 245, 0.96)' }}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-[#1E3A2F]" />
+                <span>Admin</span>
+              </button>
+            )}
+
+            {isAdminMode && (
+              <div
+                className="hidden lg:flex items-center gap-1 px-1.5 py-1 rounded-xl border border-stone-900/12 shadow-sm"
+                style={{ backgroundColor: 'rgba(250, 248, 244, 0.95)' }}
+              >
+                <button
+                  type="button"
+                  onClick={onEditChalkboard}
+                  title="Edit Chalkboard"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Board
+                </button>
+                <button
+                  type="button"
+                  onClick={onAddTeacher}
+                  title="Add Subject Teacher"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Teacher
+                </button>
+                <button
+                  type="button"
+                  onClick={onAddDeskRow}
+                  title="Add 1 bench row (4 seats)"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200/70 rounded-lg cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Row
+                </button>
+              </div>
+            )}
+
+            {canLockLandscape && (
+              <button
+                type="button"
+                onClick={onToggleFullscreenLandscape}
+                title={
+                  isFullscreenLandscape
+                    ? 'Exit Fullscreen (Show Address Bar)'
+                    : 'Hide Address Bar (Fullscreen)'
+                }
+                aria-label={
+                  isFullscreenLandscape
+                    ? 'Exit Fullscreen'
+                    : 'Enter Fullscreen'
+                }
+                className="w-8 h-8 rounded-xl border border-stone-900/15 text-stone-700 hover:bg-stone-100 flex items-center justify-center shadow-sm cursor-pointer transition-colors shrink-0"
+                style={{ backgroundColor: 'rgba(250, 248, 244, 0.95)' }}
+              >
+                {isFullscreenLandscape ? (
+                  <Minimize2 className="w-3.5 h-3.5" />
+                ) : (
+                  <Maximize2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={onToggleFullscreenLandscape}
-              title={
-                isFullscreenLandscape
-                  ? 'Exit Fullscreen (Show Address Bar)'
-                  : 'Hide Address Bar (Fullscreen)'
-              }
-              aria-label={
-                isFullscreenLandscape
-                  ? 'Exit Fullscreen'
-                  : 'Enter Fullscreen'
-              }
-              className="w-8 h-8 rounded-xl border border-stone-900/15 text-stone-700 hover:bg-stone-100 flex items-center justify-center shadow-sm cursor-pointer transition-colors"
-              style={{ backgroundColor: 'rgba(250, 248, 244, 0.95)' }}
+              onClick={onSwitchTo2D}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[#1E3A2F] hover:bg-[#162C23] text-amber-50 shadow-sm cursor-pointer transition-colors whitespace-nowrap shrink-0"
             >
-              {isFullscreenLandscape ? (
-                <Minimize2 className="w-3.5 h-3.5" />
-              ) : (
-                <Maximize2 className="w-3.5 h-3.5" />
-              )}
+              <LayoutGrid className="w-3.5 h-3.5 text-amber-200" />
+              <span>2D Grid</span>
             </button>
-          )}
+          </div>
 
-          <button
-            type="button"
-            onClick={onSwitchTo2D}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[#1E3A2F] hover:bg-[#162C23] text-amber-50 shadow-sm cursor-pointer transition-colors"
+          {/* Mobile & Tablet Developer Credit (tucked cleanly under top-right controls) */}
+          <div
+            className={`${
+              isCompactLandscape ? 'block' : 'lg:hidden'
+            } pointer-events-none px-2 py-0.5 rounded-md text-[10px] text-stone-700 border border-stone-900/12 shadow-xs`}
+            style={{ backgroundColor: 'rgba(250, 248, 244, 0.9)' }}
           >
-            <LayoutGrid className="w-3.5 h-3.5 text-amber-200" />
-            <span>2D Grid</span>
-          </button>
-        </div>
-
-        {/* Mobile & Tablet Developer Credit (tucked cleanly under top-right controls) */}
-        <div
-          className={`${
-            isCompactLandscape ? 'block' : 'lg:hidden'
-          } pointer-events-none px-2 py-0.5 rounded-md text-[10px] text-stone-700 border border-stone-900/12 shadow-xs`}
-          style={{ backgroundColor: 'rgba(250, 248, 244, 0.9)' }}
-        >
-          Developed by <span className="font-semibold text-[#1E3A2F]">dadagiri</span>
+            Developed by <span className="font-semibold text-[#1E3A2F]">dadagiri</span>
+          </div>
         </div>
       </div>
 
