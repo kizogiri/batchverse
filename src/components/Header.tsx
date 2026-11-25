@@ -128,13 +128,13 @@ export function Header({
               onClick={onToggleFullscreenLandscape}
               title={
                 isFullscreenLandscape
-                  ? 'Exit Fullscreen Landscape'
-                  : 'Fullscreen Landscape (horizontal keyboard)'
+                  ? 'Exit Fullscreen (Show Address Bar)'
+                  : 'Hide Address Bar (Fullscreen)'
               }
               aria-label={
                 isFullscreenLandscape
-                  ? 'Exit Fullscreen Landscape'
-                  : 'Enter Fullscreen Landscape'
+                  ? 'Exit Fullscreen'
+                  : 'Enter Fullscreen'
               }
               className="w-8 h-8 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 text-stone-700 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
             >

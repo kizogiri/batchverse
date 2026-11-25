@@ -86,12 +86,15 @@ export default function App() {
     visualOffsetTop,
     visualOffsetLeft,
     isKeyboardOpen,
-    canLockLandscape,
-    isFullscreenLandscape,
+    canFullscreen,
+    isFullscreen,
+    enterClassroomFullscreen,
+    exitClassroomFullscreen,
     toggleFullscreenLandscape,
   } = useMobileLandscape();
   const stageRef = useRef<HTMLDivElement | null>(null);
   const modalLayerRef = useRef<HTMLDivElement | null>(null);
+  const classroomAutoFsAttemptedRef = useRef(false);
 
   // Navigation & Auth State
   const [viewMode, setViewMode] = useState<ViewMode>('lobby');
@@ -559,10 +562,42 @@ export default function App() {
     [isPortraitPhone]
   );
 
+  // Auto-hide browser address bar on first tap when arriving via direct ?code= link,
+  // and always exit fullscreen when on the homepage (lobby) so address bar appears there.
+  useEffect(() => {
+    if (viewMode === 'lobby') {
+      classroomAutoFsAttemptedRef.current = false;
+      void exitClassroomFullscreen();
+      return;
+    }
+
+    if (!canFullscreen || isFullscreen || classroomAutoFsAttemptedRef.current) {
+      return;
+    }
+
+    const handleFirstClassroomInteraction = (e: MouseEvent) => {
+      if (classroomAutoFsAttemptedRef.current) return;
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        if (target.closest('[aria-label="Back to school lobby"]')) return;
+        if (target.closest('input, textarea, select')) return;
+      }
+      classroomAutoFsAttemptedRef.current = true;
+      void enterClassroomFullscreen();
+    };
+
+    window.addEventListener('click', handleFirstClassroomInteraction, { capture: true, once: true });
+    return () => {
+      window.removeEventListener('click', handleFirstClassroomInteraction, { capture: true });
+    };
+  }, [viewMode, canFullscreen, isFullscreen, enterClassroomFullscreen, exitClassroomFullscreen]);
+
   // ============================================================================
   // Lobby & Navigation Handlers
   // ============================================================================
   const handleReturnToLobby = () => {
+    classroomAutoFsAttemptedRef.current = false;
+    void exitClassroomFullscreen();
     clearAllSessionSeatPins();
     setSavedPinMap({});
     setPreferredAuthorSeatId(null);
@@ -577,12 +612,18 @@ export default function App() {
     const url = new URL(window.location.href);
     url.searchParams.delete('code');
     window.history.replaceState({}, '', url.toString());
+    window.scrollTo(0, 0);
   };
 
   const handleJoinByCode = async (code: string): Promise<string | null> => {
+    // Request fullscreen synchronously inside the user click/submit gesture to hide the address bar
+    classroomAutoFsAttemptedRef.current = true;
+    void enterClassroomFullscreen();
     try {
       const found = await lookupGroupByInviteCode(code);
       if (!found || !found.groupId) {
+        classroomAutoFsAttemptedRef.current = false;
+        void exitClassroomFullscreen();
         return `No school classroom found with invite code ${code}. Double-check the 5 digits.`;
       }
       // Joining via 5-digit invite code starts in Student Mode so students (or admins previewing) see locked seats
@@ -603,11 +644,15 @@ export default function App() {
       pushToast(`Entered ${found.schoolName}`);
       return null;
     } catch {
+      classroomAutoFsAttemptedRef.current = false;
+      void exitClassroomFullscreen();
       return 'Unable to reach the classroom server right now. Please try again.';
     }
   };
 
   const handleOpenGroup = (groupId: string, entryMode: 'student' | 'admin') => {
+    classroomAutoFsAttemptedRef.current = true;
+    void enterClassroomFullscreen();
     if (entryMode === 'student') {
       clearAllSessionSeatPins();
       setSavedPinMap({});
@@ -656,25 +701,33 @@ export default function App() {
     if (!adminUser) {
       throw new Error('Please sign in with Google first.');
     }
-    const created = await createSchoolGroup({
-      schoolName,
-      batchYear,
-      adminUser,
-    });
-    saveRecentGroup({
-      groupId: created.id,
-      inviteCode: created.inviteCode,
-      schoolName: created.schoolName,
-      batchYear: created.batchYear,
-    });
-    setRecentGroups(getRecentGroups());
-    window.sessionStorage.setItem(`batchverse_entry_mode_${created.id}`, 'admin');
-    setCloudEntryMode('admin');
-    setActiveGroupId(created.id);
-    setActiveGrade('grade10');
-    setViewMode('cloud');
-    setShowInviteModal(true);
-    pushToast(`Group created! 5-digit Invite Code: ${created.inviteCode}`);
+    classroomAutoFsAttemptedRef.current = true;
+    void enterClassroomFullscreen();
+    try {
+      const created = await createSchoolGroup({
+        schoolName,
+        batchYear,
+        adminUser,
+      });
+      saveRecentGroup({
+        groupId: created.id,
+        inviteCode: created.inviteCode,
+        schoolName: created.schoolName,
+        batchYear: created.batchYear,
+      });
+      setRecentGroups(getRecentGroups());
+      window.sessionStorage.setItem(`batchverse_entry_mode_${created.id}`, 'admin');
+      setCloudEntryMode('admin');
+      setActiveGroupId(created.id);
+      setActiveGrade('grade10');
+      setViewMode('cloud');
+      setShowInviteModal(true);
+      pushToast(`Group created! 5-digit Invite Code: ${created.inviteCode}`);
+    } catch (error) {
+      classroomAutoFsAttemptedRef.current = false;
+      void exitClassroomFullscreen();
+      throw error;
+    }
   };
 
   // ============================================================================
@@ -1214,8 +1267,8 @@ export default function App() {
             onReturnToLobby={handleReturnToLobby}
             isRotatedLandscape={isPortraitPhone}
             isCompactLandscape={isCompactLandscape}
-            canLockLandscape={canLockLandscape}
-            isFullscreenLandscape={isFullscreenLandscape}
+            canLockLandscape={canFullscreen}
+            isFullscreenLandscape={isFullscreen}
             onToggleFullscreenLandscape={toggleFullscreenLandscape}
           />
         ) : (
@@ -1231,10 +1284,8 @@ export default function App() {
               onOpenInviteModal={() => setShowInviteModal(true)}
               onSwitchTo3D={() => setClassroomLayout('3d')}
               onReturnToLobby={handleReturnToLobby}
-              showFullscreenLandscapeButton={
-                canLockLandscape && (isPortraitPhone || isFullscreenLandscape)
-              }
-              isFullscreenLandscape={isFullscreenLandscape}
+              showFullscreenLandscapeButton={canFullscreen}
+              isFullscreenLandscape={isFullscreen}
               onToggleFullscreenLandscape={toggleFullscreenLandscape}
             />
 

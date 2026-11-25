@@ -102,7 +102,7 @@ export function LobbyView({
     `${window.location.origin}${window.location.pathname}?code=${code}`;
 
   return (
-    <div className="min-h-screen flex flex-col classroom-floor">
+    <div className="min-h-[calc(100svh+1px)] md:min-h-screen flex flex-col classroom-floor">
       {/* Clean 3-Zone Header */}
       <header className="sticky top-0 z-30 bg-[#FAF8F4]/95 backdrop-blur-md border-b border-stone-200/90">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">

@@ -408,19 +408,19 @@ export function Classroom3DView({
             </div>
           )}
 
-          {canLockLandscape && (isRotatedLandscape || isFullscreenLandscape) && (
+          {canLockLandscape && (
             <button
               type="button"
               onClick={onToggleFullscreenLandscape}
               title={
                 isFullscreenLandscape
-                  ? 'Exit Fullscreen Landscape'
-                  : 'Fullscreen Landscape (horizontal keyboard)'
+                  ? 'Exit Fullscreen (Show Address Bar)'
+                  : 'Hide Address Bar (Fullscreen)'
               }
               aria-label={
                 isFullscreenLandscape
-                  ? 'Exit Fullscreen Landscape'
-                  : 'Enter Fullscreen Landscape'
+                  ? 'Exit Fullscreen'
+                  : 'Enter Fullscreen'
               }
               className="w-8 h-8 rounded-xl border border-stone-900/15 text-stone-700 hover:bg-stone-100 flex items-center justify-center shadow-sm cursor-pointer transition-colors"
               style={{ backgroundColor: 'rgba(250, 248, 244, 0.95)' }}
