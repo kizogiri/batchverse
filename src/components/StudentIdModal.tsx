@@ -23,6 +23,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { DeskGraffitiNote, StudentSeat } from '@/src/types/classroom';
 import { formatWhatsAppUrl, normalizeExternalUrl } from '@/src/utils/imageHelpers';
 import { getLocalTimeInfo, resolveCountryFlag } from '@/src/utils/locationTime';
+import { formatNickname } from '@/src/utils/nickname';
 
 interface StudentIdModalProps {
   seat: StudentSeat;
@@ -148,9 +149,9 @@ export function StudentIdModal({
                   >
                     {student.fullName}
                   </h2>
-                  {student.nickname && (
+                  {formatNickname(student.nickname) && (
                     <p className="text-xs @md:text-sm italic text-amber-200 mt-0.5">
-                      {student.nickname}
+                      {formatNickname(student.nickname)}
                     </p>
                   )}
                   <p className="text-xs text-emerald-100/90 mt-1 flex items-center gap-1.5">

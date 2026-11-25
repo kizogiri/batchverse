@@ -4,6 +4,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { SeatFilter } from '@/src/components/ClassroomToolbar';
 import { StudentSeat } from '@/src/types/classroom';
 import { resolveCountryFlag } from '@/src/utils/locationTime';
+import { formatNickname } from '@/src/utils/nickname';
 
 interface ClassroomSeatingGridProps {
   seats: StudentSeat[];
@@ -327,9 +328,9 @@ export function ClassroomSeatingGrid({
                 <span className="sm:hidden">{firstName}</span>
                 <span className="hidden sm:inline">{student.fullName}</span>
               </p>
-              {student.nickname ? (
+              {formatNickname(student.nickname) ? (
                 <p className="text-[10px] sm:text-xs italic text-amber-950/80 truncate">
-                  {student.nickname}
+                  {formatNickname(student.nickname)}
                 </p>
               ) : (
                 <p className="text-[10px] sm:text-xs text-stone-700 truncate">

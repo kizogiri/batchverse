@@ -4,6 +4,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { StudentProfile, StudentSeat } from '@/src/types/classroom';
 import { readAndResizeImageFile } from '@/src/utils/imageHelpers';
 import { resolveCountryFlag } from '@/src/utils/locationTime';
+import { cleanNickname, formatNickname } from '@/src/utils/nickname';
 
 interface ClaimSeatModalProps {
   seat: StudentSeat;
@@ -24,7 +25,7 @@ export function ClaimSeatModal({
   const isEditing = existing !== null;
 
   const [fullName, setFullName] = useState(existing?.fullName ?? '');
-  const [nickname, setNickname] = useState(existing?.nickname ?? '');
+  const [nickname, setNickname] = useState(() => cleanNickname(existing?.nickname));
   const [city, setCity] = useState(existing?.city ?? '');
   const [country, setCountry] = useState(existing?.country ?? '');
   const [profession, setProfession] = useState(existing?.profession ?? '');
@@ -67,11 +68,7 @@ export function ClaimSeatModal({
 
     setFormError('');
 
-    const formattedNickname = nickname.trim()
-      ? nickname.trim().toLowerCase().startsWith('aka ')
-        ? nickname.trim()
-        : `aka ${nickname.trim()}`
-      : undefined;
+    const formattedNickname = formatNickname(nickname) || undefined;
 
     const profile: StudentProfile = {
       fullName: fullName.trim().slice(0, 80),

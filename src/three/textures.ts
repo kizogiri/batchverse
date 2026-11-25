@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ChalkboardConfig, StudentSeat, TeacherProfile } from '@/src/types/classroom';
+import { formatNicknameQuoted } from '@/src/utils/nickname';
 
 // Persistent decoded image cache so switching grades or searching never flashes or stutters
 const loadedImageCache = new Map<string, HTMLImageElement>();
@@ -581,10 +582,11 @@ export function createSeatNameplateTexture(
       ty += 56;
     }
 
-    if (occ.nickname) {
+    const formattedNick = formatNicknameQuoted(occ.nickname);
+    if (formattedNick) {
       ctx.fillStyle = '#B45309';
       ctx.font = 'italic 700 34px system-ui, -apple-system, sans-serif';
-      const nick = wrapTextLines(ctx, `aka "${occ.nickname}"`, 430, 1)[0] ?? '';
+      const nick = wrapTextLines(ctx, formattedNick, 430, 1)[0] ?? '';
       ctx.fillText(nick, 314, ty + 4);
       ty += 44;
     }

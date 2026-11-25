@@ -5,6 +5,8 @@ import {
   GraduationCap,
   KeyRound,
   LogIn,
+  Maximize2,
+  Minimize2,
   ShieldCheck,
 } from 'lucide-react';
 import { ClassroomData, GradeId, SchoolGroupDoc } from '@/src/types/classroom';
@@ -20,6 +22,9 @@ interface HeaderProps {
   onOpenInviteModal: () => void;
   onSwitchTo3D: () => void;
   onReturnToLobby: () => void;
+  showFullscreenLandscapeButton?: boolean;
+  isFullscreenLandscape?: boolean;
+  onToggleFullscreenLandscape?: () => void;
 }
 
 export function Header({
@@ -33,6 +38,9 @@ export function Header({
   onOpenInviteModal,
   onSwitchTo3D,
   onReturnToLobby,
+  showFullscreenLandscapeButton = false,
+  isFullscreenLandscape = false,
+  onToggleFullscreenLandscape,
 }: HeaderProps) {
   const claimedSeats = classroom.seats.filter((seat) => seat.occupant !== null);
   const totalSeats = classroom.seats.length;
@@ -114,6 +122,30 @@ export function Header({
 
         {/* Zone 3: 3D Room Toggle, Invite Code / Admin Status */}
         <div className="flex items-center gap-1.5 @2xl:gap-2 shrink-0">
+          {showFullscreenLandscapeButton && onToggleFullscreenLandscape && (
+            <button
+              type="button"
+              onClick={onToggleFullscreenLandscape}
+              title={
+                isFullscreenLandscape
+                  ? 'Exit Fullscreen Landscape'
+                  : 'Fullscreen Landscape (horizontal keyboard)'
+              }
+              aria-label={
+                isFullscreenLandscape
+                  ? 'Exit Fullscreen Landscape'
+                  : 'Enter Fullscreen Landscape'
+              }
+              className="w-8 h-8 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 text-stone-700 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            >
+              {isFullscreenLandscape ? (
+                <Minimize2 className="w-3.5 h-3.5" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onSwitchTo3D}

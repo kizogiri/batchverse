@@ -1,5 +1,6 @@
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RotateCw } from 'lucide-react';
+import { FocusEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditChalkboardModal, TeacherFormModal } from '@/src/components/AdminModals';
 import { ChalkboardStage } from '@/src/components/ChalkboardStage';
 import { ClaimSeatModal } from '@/src/components/ClaimSeatModal';
@@ -70,12 +71,26 @@ import {
 type ViewMode = 'lobby' | 'cloud';
 
 export default function App() {
-  const { isPortraitPhone, isCompactLandscape, viewportWidth, viewportHeight } =
-    useMobileLandscape();
+  const {
+    isPortraitPhone,
+    isCompactLandscape,
+    viewportWidth,
+    viewportHeight,
+    visualWidth,
+    visualHeight,
+    visualOffsetTop,
+    visualOffsetLeft,
+    isKeyboardOpen,
+    canLockLandscape,
+    isFullscreenLandscape,
+    toggleFullscreenLandscape,
+  } = useMobileLandscape();
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const modalLayerRef = useRef<HTMLDivElement | null>(null);
 
   // Navigation & Auth State
   const [viewMode, setViewMode] = useState<ViewMode>('lobby');
+  const [portraitModalUpright, setPortraitModalUpright] = useState(false);
   useRotatedTouchScroll(stageRef, isPortraitPhone && viewMode === 'cloud');
   const [adminUser, setAdminUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -436,6 +451,64 @@ export default function App() {
     if (!found) return null;
     return { ...found, appreciationNotes: cloudTeacherNotes };
   }, [inspectingTeacherId, currentClassroom.teachers, cloudTeacherNotes]);
+
+  const hasOpenModal = Boolean(
+    claimingSeat ||
+      (inspectingSeat && inspectingSeat.seat.occupant) ||
+      (pinPromptState && pinPromptState.seat.occupant) ||
+      (showInviteModal && activeGroup) ||
+      inspectingTeacher ||
+      showChalkboardModal ||
+      editingTeacher !== undefined
+  );
+
+  // Reset modal upright typing mode when all modals close or device physically rotates to landscape
+  useEffect(() => {
+    if (!hasOpenModal || !isPortraitPhone) {
+      setPortraitModalUpright(false);
+    }
+  }, [hasOpenModal, isPortraitPhone]);
+
+  // Enable rotated touch scrolling for landscape modals; disable when modal flips upright for typing
+  useRotatedTouchScroll(
+    modalLayerRef,
+    isPortraitPhone && viewMode === 'cloud' && hasOpenModal && !portraitModalUpright
+  );
+
+  // When typing on a portrait phone, the OS keyboard is always vertical — flip the active modal
+  // upright right above the keyboard so inputs & buttons match the keyboard orientation cleanly.
+  const handleModalFocusCapture = useCallback(
+    (e: FocusEvent<HTMLDivElement>) => {
+      if (!isPortraitPhone) return;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      const isTextLikeInput =
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLInputElement &&
+          ![
+            'button',
+            'submit',
+            'reset',
+            'checkbox',
+            'radio',
+            'file',
+            'range',
+            'color',
+            'hidden',
+          ].includes(target.type));
+      if (!isTextLikeInput) return;
+
+      setPortraitModalUpright(true);
+      window.setTimeout(() => {
+        try {
+          target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        } catch {
+          // Ignore scroll errors
+        }
+      }, 140);
+    },
+    [isPortraitPhone]
+  );
 
   // ============================================================================
   // Lobby & Navigation Handlers
@@ -927,165 +1000,218 @@ export default function App() {
     </>
   );
 
+  const modalLayerStyle =
+    isPortraitPhone && hasOpenModal
+      ? portraitModalUpright
+        ? {
+            top: `${visualOffsetTop}px`,
+            left: `${visualOffsetLeft}px`,
+            width: `${visualWidth}px`,
+            height: `${visualHeight}px`,
+            transform: 'translate3d(0, 0, 0)',
+          }
+        : {
+            width: `${viewportHeight}px`,
+            height: `${viewportWidth}px`,
+          }
+      : undefined;
+
+  const modalLayerClass = !isPortraitPhone
+    ? 'contents'
+    : !hasOpenModal
+      ? 'hidden'
+      : portraitModalUpright
+        ? 'fixed z-50 overflow-hidden'
+        : 'mobile-landscape-stage z-50 overflow-hidden';
+
   return (
-    <div
-      ref={stageRef}
-      style={stageStyle}
-      className={
-        isPortraitPhone
-          ? 'mobile-landscape-stage flex flex-col classroom-floor overflow-hidden'
-          : 'min-h-screen flex flex-col classroom-floor'
-      }
-    >
-      {classroomLayout === '3d' && !(cloudLoading && !activeGroup) ? (
-        <Classroom3DView
-          classroom={currentClassroom}
-          activeGrade={activeGrade}
-          onSelectGrade={handleSelectGrade}
-          activeGroup={activeGroup}
-          isAdminMode={isAdminMode}
-          canEnableAdmin={isGroupOwner && !isAdminMode}
-          onEnableAdminMode={handleEnableAdminMode}
-          isLocked={Boolean(activeGroup?.isLocked)}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          matchCount={searchMatchCount}
-          movingSeatId={movingSeatId}
-          onCancelMoveMode={() => setMovingSeatId(null)}
-          canModifySeat={canModifySeat}
-          onSelectOccupiedSeat={(seatId) => setInspectingSeatId(seatId)}
-          onClaimEmptySeat={(seatId) => setClaimingSeatId(seatId)}
-          onMoveSeat={handleMoveSeat}
-          onSelectTeacher={(teacherId) => setInspectingTeacherId(teacherId)}
-          onEditChalkboard={() => setShowChalkboardModal(true)}
-          onAddTeacher={() => setEditingTeacher(null)}
-          onAddDeskRow={handleAddDeskRow}
-          onOpenInviteModal={() => setShowInviteModal(true)}
-          onSwitchTo2D={() => setClassroomLayout('2d')}
-          onReturnToLobby={handleReturnToLobby}
-          isRotatedLandscape={isPortraitPhone}
-          isCompactLandscape={isCompactLandscape}
-        />
-      ) : (
-        <>
-          <Header
+    <>
+      <div
+        ref={stageRef}
+        style={stageStyle}
+        className={
+          isPortraitPhone
+            ? 'mobile-landscape-stage flex flex-col classroom-floor overflow-hidden'
+            : 'min-h-screen flex flex-col classroom-floor'
+        }
+      >
+        {classroomLayout === '3d' && !(cloudLoading && !activeGroup) ? (
+          <Classroom3DView
+            classroom={currentClassroom}
             activeGrade={activeGrade}
             onSelectGrade={handleSelectGrade}
-            classroom={currentClassroom}
             activeGroup={activeGroup}
-            adminUser={adminUser}
             isAdminMode={isAdminMode}
-            onAdminSignIn={handleEnableAdminMode}
+            canEnableAdmin={isGroupOwner && !isAdminMode}
+            onEnableAdminMode={handleEnableAdminMode}
+            isLocked={Boolean(activeGroup?.isLocked)}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            matchCount={searchMatchCount}
+            movingSeatId={movingSeatId}
+            onCancelMoveMode={() => setMovingSeatId(null)}
+            canModifySeat={canModifySeat}
+            onSelectOccupiedSeat={(seatId) => setInspectingSeatId(seatId)}
+            onClaimEmptySeat={(seatId) => setClaimingSeatId(seatId)}
+            onMoveSeat={handleMoveSeat}
+            onSelectTeacher={(teacherId) => setInspectingTeacherId(teacherId)}
+            onEditChalkboard={() => setShowChalkboardModal(true)}
+            onAddTeacher={() => setEditingTeacher(null)}
+            onAddDeskRow={handleAddDeskRow}
             onOpenInviteModal={() => setShowInviteModal(true)}
-            onSwitchTo3D={() => setClassroomLayout('3d')}
+            onSwitchTo2D={() => setClassroomLayout('2d')}
             onReturnToLobby={handleReturnToLobby}
+            isRotatedLandscape={isPortraitPhone}
+            isCompactLandscape={isCompactLandscape}
+            canLockLandscape={canLockLandscape}
+            isFullscreenLandscape={isFullscreenLandscape}
+            onToggleFullscreenLandscape={toggleFullscreenLandscape}
           />
+        ) : (
+          <>
+            <Header
+              activeGrade={activeGrade}
+              onSelectGrade={handleSelectGrade}
+              classroom={currentClassroom}
+              activeGroup={activeGroup}
+              adminUser={adminUser}
+              isAdminMode={isAdminMode}
+              onAdminSignIn={handleEnableAdminMode}
+              onOpenInviteModal={() => setShowInviteModal(true)}
+              onSwitchTo3D={() => setClassroomLayout('3d')}
+              onReturnToLobby={handleReturnToLobby}
+              showFullscreenLandscapeButton={
+                canLockLandscape && (isPortraitPhone || isFullscreenLandscape)
+              }
+              isFullscreenLandscape={isFullscreenLandscape}
+              onToggleFullscreenLandscape={toggleFullscreenLandscape}
+            />
 
-          {isPortraitPhone ? (
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
-              <div className="min-h-full flex flex-col">{classroom2DBody}</div>
-            </div>
-          ) : (
-            classroom2DBody
-          )}
-        </>
-      )}
+            {isPortraitPhone ? (
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+                <div className="min-h-full flex flex-col">{classroom2DBody}</div>
+              </div>
+            ) : (
+              classroom2DBody
+            )}
+          </>
+        )}
+      </div>
 
-      {/* Modals */}
-      {claimingSeat && (
-        <ClaimSeatModal
-          seat={claimingSeat.seat}
-          gradeLabel={gradeShortLabel}
-          zoneLabel={claimingSeat.zoneLabel}
-          onClose={() => setClaimingSeatId(null)}
-          onSave={handleSaveSeat}
-        />
-      )}
+      {/* Dedicated Modal Layer: stays wide landscape for reading, flips upright above vertical keyboard when typing */}
+      <div
+        ref={modalLayerRef}
+        style={modalLayerStyle}
+        className={modalLayerClass}
+        onFocusCapture={handleModalFocusCapture}
+      >
+        {claimingSeat && (
+          <ClaimSeatModal
+            seat={claimingSeat.seat}
+            gradeLabel={gradeShortLabel}
+            zoneLabel={claimingSeat.zoneLabel}
+            onClose={() => setClaimingSeatId(null)}
+            onSave={handleSaveSeat}
+          />
+        )}
 
-      {inspectingSeat && inspectingSeat.seat.occupant && (
-        <StudentIdModal
-          seat={inspectingSeat.seat}
-          graffitiNotes={cloudSeatGraffiti}
-          gradeShortLabel={gradeShortLabel}
-          zoneLabel={inspectingSeat.zoneLabel}
-          canModifySeat={canModifySeat(inspectingSeat.seat.id)}
-          isAdmin={isAdminMode}
-          canEnableAdmin={isGroupOwner && !isAdminMode}
-          onEnableAdminMode={handleEnableAdminMode}
-          onClose={() => setInspectingSeatId(null)}
-          onEditSeat={(seat) => {
-            if (!canModifySeat(seat.id)) return;
-            setInspectingSeatId(null);
-            setClaimingSeatId(seat.id);
-          }}
-          onStartMoveSeat={(seatId) => {
-            if (!canModifySeat(seatId)) return;
-            setInspectingSeatId(null);
-            setMovingSeatId(seatId);
-          }}
-          onVacateSeat={handleVacateSeat}
-          onRequestUnlockPin={(seat) => {
-            setPinPromptState({ mode: 'unlock', seat });
-          }}
-          onAdminResetPin={(seat) => {
-            setPinPromptState({ mode: 'admin-reset', seat });
-          }}
-          onAddGraffiti={handleAddGraffiti}
-          onCopySuccess={(msg) => pushToast(msg)}
-        />
-      )}
+        {inspectingSeat && inspectingSeat.seat.occupant && (
+          <StudentIdModal
+            seat={inspectingSeat.seat}
+            graffitiNotes={cloudSeatGraffiti}
+            gradeShortLabel={gradeShortLabel}
+            zoneLabel={inspectingSeat.zoneLabel}
+            canModifySeat={canModifySeat(inspectingSeat.seat.id)}
+            isAdmin={isAdminMode}
+            canEnableAdmin={isGroupOwner && !isAdminMode}
+            onEnableAdminMode={handleEnableAdminMode}
+            onClose={() => setInspectingSeatId(null)}
+            onEditSeat={(seat) => {
+              if (!canModifySeat(seat.id)) return;
+              setInspectingSeatId(null);
+              setClaimingSeatId(seat.id);
+            }}
+            onStartMoveSeat={(seatId) => {
+              if (!canModifySeat(seatId)) return;
+              setInspectingSeatId(null);
+              setMovingSeatId(seatId);
+            }}
+            onVacateSeat={handleVacateSeat}
+            onRequestUnlockPin={(seat) => {
+              setPinPromptState({ mode: 'unlock', seat });
+            }}
+            onAdminResetPin={(seat) => {
+              setPinPromptState({ mode: 'admin-reset', seat });
+            }}
+            onAddGraffiti={handleAddGraffiti}
+            onCopySuccess={(msg) => pushToast(msg)}
+          />
+        )}
 
-      {pinPromptState && pinPromptState.seat.occupant && (
-        <SeatPinModal
-          mode={pinPromptState.mode}
-          studentName={pinPromptState.seat.occupant.fullName}
-          seatNumber={pinPromptState.seat.seatNumber}
-          onClose={() => setPinPromptState(null)}
-          onSubmitPin={handleSubmitSeatPin}
-        />
-      )}
+        {pinPromptState && pinPromptState.seat.occupant && (
+          <SeatPinModal
+            mode={pinPromptState.mode}
+            studentName={pinPromptState.seat.occupant.fullName}
+            seatNumber={pinPromptState.seat.seatNumber}
+            onClose={() => setPinPromptState(null)}
+            onSubmitPin={handleSubmitSeatPin}
+          />
+        )}
 
-      {showInviteModal && activeGroup && (
-        <InviteCodeModal
-          group={activeGroup}
-          isAdmin={isAdminMode}
-          onClose={() => setShowInviteModal(false)}
-          onCopyText={handleCopyText}
-          onRegenerateCode={handleRegenerateInviteCode}
-          onToggleLock={handleToggleLock}
-        />
-      )}
+        {showInviteModal && activeGroup && (
+          <InviteCodeModal
+            group={activeGroup}
+            isAdmin={isAdminMode}
+            onClose={() => setShowInviteModal(false)}
+            onCopyText={handleCopyText}
+            onRegenerateCode={handleRegenerateInviteCode}
+            onToggleLock={handleToggleLock}
+          />
+        )}
 
-      {inspectingTeacher && (
-        <TeacherTributeModal
-          teacher={inspectingTeacher}
-          isAdminMode={isAdminMode}
-          onClose={() => setInspectingTeacherId(null)}
-          onAddAppreciation={handleAddTeacherAppreciation}
-          onEditTeacher={(teacher) => setEditingTeacher(teacher)}
-          onDeleteTeacher={handleDeleteTeacher}
-        />
-      )}
+        {inspectingTeacher && (
+          <TeacherTributeModal
+            teacher={inspectingTeacher}
+            isAdminMode={isAdminMode}
+            onClose={() => setInspectingTeacherId(null)}
+            onAddAppreciation={handleAddTeacherAppreciation}
+            onEditTeacher={(teacher) => setEditingTeacher(teacher)}
+            onDeleteTeacher={handleDeleteTeacher}
+          />
+        )}
 
-      {showChalkboardModal && (
-        <EditChalkboardModal
-          gradeLabel={currentClassroom.label}
-          chalkboard={currentClassroom.chalkboard}
-          onClose={() => setShowChalkboardModal(false)}
-          onSave={handleSaveChalkboard}
-        />
-      )}
+        {showChalkboardModal && (
+          <EditChalkboardModal
+            gradeLabel={currentClassroom.label}
+            chalkboard={currentClassroom.chalkboard}
+            onClose={() => setShowChalkboardModal(false)}
+            onSave={handleSaveChalkboard}
+          />
+        )}
 
-      {editingTeacher !== undefined && (
-        <TeacherFormModal
-          gradeLabel={currentClassroom.label}
-          teacher={editingTeacher}
-          onClose={() => setEditingTeacher(undefined)}
-          onSave={handleSaveTeacher}
-        />
-      )}
+        {editingTeacher !== undefined && (
+          <TeacherFormModal
+            gradeLabel={currentClassroom.label}
+            teacher={editingTeacher}
+            onClose={() => setEditingTeacher(undefined)}
+            onSave={handleSaveTeacher}
+          />
+        )}
+
+        {/* Quick return to wide landscape view once keyboard is dismissed */}
+        {isPortraitPhone && hasOpenModal && portraitModalUpright && !isKeyboardOpen && (
+          <button
+            type="button"
+            onClick={() => setPortraitModalUpright(false)}
+            className="fixed bottom-2.5 left-1/2 -translate-x-1/2 z-[55] inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-stone-900/90 text-amber-50 border border-white/15 rounded-full shadow-lg cursor-pointer"
+          >
+            <RotateCw className="w-3 h-3 text-amber-300" />
+            Landscape View
+          </button>
+        )}
+      </div>
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-    </div>
+    </>
   );
 }

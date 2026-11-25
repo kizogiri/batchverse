@@ -7,6 +7,8 @@ import {
   GraduationCap,
   KeyRound,
   LayoutGrid,
+  Maximize2,
+  Minimize2,
   Moon,
   Plus,
   Search,
@@ -52,6 +54,9 @@ interface Classroom3DViewProps {
   onReturnToLobby: () => void;
   isRotatedLandscape: boolean;
   isCompactLandscape: boolean;
+  canLockLandscape: boolean;
+  isFullscreenLandscape: boolean;
+  onToggleFullscreenLandscape: () => void;
 }
 
 const CAMERA_BUTTONS: { id: CameraPresetId; label: string }[] = [
@@ -95,6 +100,9 @@ export function Classroom3DView({
   onReturnToLobby,
   isRotatedLandscape,
   isCompactLandscape,
+  canLockLandscape,
+  isFullscreenLandscape,
+  onToggleFullscreenLandscape,
 }: Classroom3DViewProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<Classroom3DScene | null>(null);
@@ -398,6 +406,31 @@ export function Classroom3DView({
                 Row
               </button>
             </div>
+          )}
+
+          {canLockLandscape && (isRotatedLandscape || isFullscreenLandscape) && (
+            <button
+              type="button"
+              onClick={onToggleFullscreenLandscape}
+              title={
+                isFullscreenLandscape
+                  ? 'Exit Fullscreen Landscape'
+                  : 'Fullscreen Landscape (horizontal keyboard)'
+              }
+              aria-label={
+                isFullscreenLandscape
+                  ? 'Exit Fullscreen Landscape'
+                  : 'Enter Fullscreen Landscape'
+              }
+              className="w-8 h-8 rounded-xl border border-stone-900/15 text-stone-700 hover:bg-stone-100 flex items-center justify-center shadow-sm cursor-pointer transition-colors"
+              style={{ backgroundColor: 'rgba(250, 248, 244, 0.95)' }}
+            >
+              {isFullscreenLandscape ? (
+                <Minimize2 className="w-3.5 h-3.5" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5" />
+              )}
+            </button>
           )}
 
           <button
